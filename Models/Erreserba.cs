@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 public class Erreserba
 {
     public virtual int Id { get; set; }
@@ -7,5 +10,5 @@ public class Erreserba
     public virtual int? PertsonaKopurua { get; set; }
     public virtual DateTime? Data { get; set; }
 
-    public virtual IList<Fakturak> Fakturak { get; set; } = new List<Fakturak>(); 
+    //public virtual IList<Faktura> Fakturak { get; set; } = new List<Faktura>(); 
 }

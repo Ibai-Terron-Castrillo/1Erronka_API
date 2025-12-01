@@ -1,6 +1,6 @@
 using FluentNHibernate.Mapping;
 
-public class ErreserbaMap : ClassMap<Erreserbak>
+public class ErreserbaMap : ClassMap<Erreserba>
 {
     public ErreserbaMap()
     {
@@ -12,10 +12,10 @@ public class ErreserbaMap : ClassMap<Erreserbak>
         Map(x => x.Txanda);
         Map(x => x.PertsonaKopurua);
         Map(x => x.Data);
-
+        /*
         HasMany(x => x.Fakturak)
             .KeyColumn("erreserbak_id")
             .Inverse()
-            .Cascade.All();
+            .Cascade.All();*/
     }
 }

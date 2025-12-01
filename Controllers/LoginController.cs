@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using NHibernate;
+using NHibernate.Linq;
 using System.Linq;
 
 [ApiController]
@@ -12,21 +12,27 @@ public class LoginController : ControllerBase
         using var session = NHibernateHelper.OpenSession();
 
         var user = session.Query<Erabiltzailea>()
-            .FirstOrDefault(u =>
+            .Where(u =>
                 u.Izena == request.Erabiltzailea &&
                 u.Pasahitza == request.Pasahitza
-            );
+            )
+            .Fetch(u => u.Langilea)
+            .FirstOrDefault();
 
         if (user == null)
-            return Unauthorized(new { message = "Errorea: Erabiltzaile edo pasahitz okerra" });
+            return Unauthorized(new { message = "Erabiltzaile edo pasahitz okerra" });
+
+        if (user.Langilea.Lanpostua.Id != 1)
+            return Unauthorized(new { message = "Ez duzu baimenik sartzeko" });
 
         return Ok(new
         {
-            message = "Login egokia",
+            message = "Login zuzena!",
             id = user.Id,
-            langileId = user.LangileId
+            langileId = user.Langilea.Id
         });
     }
+
 }
 
 public class LoginRequest
