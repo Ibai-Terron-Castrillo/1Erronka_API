@@ -8,12 +8,13 @@ namespace API.Models
 {
     internal class Osagaia
     {
-        public int Id { get; set; }
-        public string Izena { get; set; }
-        public double AzkenPrezioa { get; set; }
-        public int Stock { get; set; }
-        public int GutxienekoStock { get; set; }
-        public bool Eskatu { get; set; }
+        public Osagaia() { }
+        public virtual int Id { get; set; }
+        public virtual string Izena { get; set; }
+        public virtual double AzkenPrezioa { get; set; }
+        public virtual int Stock { get; set; }
+        public virtual int GutxienekoStock { get; set; }
+        public virtual bool Eskatu { get; set; }
 
         public virtual Eskaera Eskaera { get; set; }
     }

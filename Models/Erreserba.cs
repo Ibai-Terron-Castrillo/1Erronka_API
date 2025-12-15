@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 public class Erreserba
 {
+    public Erreserba() { }
     public virtual int Id { get; set; }
     public virtual string Izena { get; set; }
     public virtual int? Telefonoa { get; set; }

@@ -8,10 +8,11 @@ namespace API.Models
 {
     internal class Eskaera
     {
-        public int Id { get; set; }
-        public int Totala { get; set; }
-        public bool Egoera { get; set; }
-        public string EskaeraPDF { get; set; }
+        public Eskaera() { }
+        public virtual int Id { get; set; }
+        public virtual int Totala { get; set; }
+        public virtual bool Egoera { get; set; }
+        public virtual string EskaeraPDF { get; set; }
 
         public virtual Osagaia Osagaia { get; set; }
     }
