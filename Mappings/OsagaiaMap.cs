@@ -1,32 +1,29 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using API.Models;
-using FluentNHibernate.Conventions.Helpers;
-using FluentNHibernate.Mapping;
+﻿using FluentNHibernate.Mapping;
 
-namespace API.Mappings
+public class OsagaiaMap : ClassMap<Osagaia>
 {
-    internal class OsagaiaMap : ClassMap<Osagaia>
+    public OsagaiaMap()
     {
-        public OsagaiaMap()
-        {
-            Table("Osagaiak");
+        Table("Osagaiak");
 
-            Id(x => x.Id).GeneratedBy.Identity();
+        Id(x => x.Id).GeneratedBy.Identity();
 
+        Map(x => x.Izena).Column("izena").Length(80).Not.Nullable();
+        Map(x => x.AzkenPrezioa).Column("azken_prezioa").Not.Nullable();
+        Map(x => x.Stock).Column("stock").Not.Nullable();
+        Map(x => x.GutxienekoStock).Column("gutxieneko_stock");
+        Map(x => x.Eskatu).Column("eskatu");
 
-            Map(x => x.Izena).Column("izena");
-            Map(x => x.AzkenPrezioa).Column("azken_prezioa");
-            Map(x => x.Stock).Column("stock");
-            Map(x => x.GutxienekoStock).Column("gutxieneko_stock");
-            Map(x => x.Eskatu).Column("eskatu");
+        HasManyToMany(x => x.Hornitzaileak)
+            .Table("Osagaiak_Hornitzaileak")
+            .ParentKeyColumn("Osagaiak_id")
+            .ChildKeyColumn("Hornitzaileak_id")
+            .Cascade.SaveUpdate();
 
-            References(x => x.Eskaera)
-                .Column("eskaerak_id")
-                .Not.Nullable();
-        }
+        HasManyToMany(x => x.Platerak)
+            .Table("Platerak_Osagaiak")
+            .ParentKeyColumn("osagaiak_id")
+            .ChildKeyColumn("platerak_id")
+            .Cascade.SaveUpdate();
     }
 }

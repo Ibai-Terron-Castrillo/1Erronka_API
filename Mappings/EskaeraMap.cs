@@ -1,29 +1,22 @@
 ﻿using FluentNHibernate.Mapping;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using API.Models;
 
-namespace API.Mappings
+public class EskaeraMap : ClassMap<Eskaera>
 {
-    internal class EskaeraMap : ClassMap<Eskaera>
+    public EskaeraMap()
     {
-        public EskaeraMap() {
+        Table("Eskaerak");
 
-            Table("Eskaerak");
+        Id(x => x.Id).GeneratedBy.Identity();
 
-            Id(x => x.Id).GeneratedBy.Identity();
+        Map(x => x.EskaeraZenbakia).Column("eskaera_zenbakia").Not.Nullable();
+        Map(x => x.Totala).Column("totala").Not.Nullable();
+        Map(x => x.Egoera).Column("egoera").Not.Nullable();
+        Map(x => x.EskaeraPdf).Column("eskaera_pdf").Length(100).Not.Nullable();
 
-            Map(x => x.Totala).Column("totala");
-            Map(x => x.Egoera).Column("egoera");
-            Map(x => x.EskaeraPDF).Column("eskaera_pdf");
-
-            References(x => x.Osagaia)
-                .Column("osagaiak_id")
-                .Not.Nullable();
-
-        }
+        HasManyToMany(x => x.Osagaiak)
+            .Table("Eskaerak_Osagaiak")
+            .ParentKeyColumn("eskaerak_id")
+            .ChildKeyColumn("osagaiak_id")
+            .Cascade.SaveUpdate();
     }
 }
