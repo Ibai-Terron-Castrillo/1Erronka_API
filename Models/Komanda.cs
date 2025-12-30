@@ -16,5 +16,5 @@ public class Komanda
     public virtual bool Egoera { get; set; }
 
     public virtual Platerak Platerak { get; set; }
-    public virtual Fakturak Fakturak { get; set; }
+    public virtual Faktura Faktura { get; set; }
 }

@@ -6,10 +6,7 @@ public class ErreserbaMahaiMap : ClassMap<ErreserbaMahai>
     {
         Table("Erreserbak_Mahaiak");
 
-        CompositeId()
-            .KeyProperty(x => x.Id, "id")
-            .KeyReference(x => x.Erreserba, "erreserbak_id")
-            .KeyReference(x => x.Mahai, "mahaiak_id");
+        Id(x => x.Id).GeneratedBy.Identity();
 
         References(x => x.Erreserba)
             .Column("erreserbak_id")

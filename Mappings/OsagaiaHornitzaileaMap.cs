@@ -6,10 +6,7 @@ public class OsagaiaHornitzaileaMap : ClassMap<OsagaiaHornitzailea>
     {
         Table("Osagaiak_Hornitzaileak");
 
-        CompositeId()
-            .KeyProperty(x => x.Id, "id")
-            .KeyReference(x => x.Osagaia, "Osagaiak_id")
-            .KeyReference(x => x.Hornitzailea, "Hornitzaileak_id");
+        Id(x => x.Id).GeneratedBy.Identity();
 
         References(x => x.Osagaia)
             .Column("Osagaiak_id")

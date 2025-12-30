@@ -6,10 +6,7 @@ public class PlaterakOsagaiaMap : ClassMap<PlaterakOsagaia>
     {
         Table("Platerak_Osagaiak");
 
-        CompositeId()
-            .KeyProperty(x => x.Id, "id")
-            .KeyReference(x => x.Osagaia, "osagaiak_id")
-            .KeyReference(x => x.Platerak, "platerak_id");
+        Id(x => x.Id).GeneratedBy.Identity();
 
         Map(x => x.Kopurua).Column("kopurua").Not.Nullable();
 
