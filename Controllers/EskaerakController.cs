@@ -236,7 +236,7 @@ public class EskaerakController : ControllerBase
 
                 session.Save(eskaeraOsagaia);
 
-                eskaera.Totala += eskaeraOsagaia.Totala;
+                eskaera.Totala += (int)Math.Round(eskaeraOsagaia.Totala);
                 session.Update(eskaera);
 
                 transaction.Commit();

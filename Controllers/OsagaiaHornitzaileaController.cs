@@ -33,7 +33,7 @@ public class OsagaiaHornitzaileaController : ControllerBase
         using (var session = _sessionFactory.OpenSession())
         {
             var relations = session.Query<OsagaiaHornitzailea>()
-                .Where(oh => oh.OsagaiakId == osagaiaId)
+                .Where(oh => oh.Osagaia.Id == osagaiaId)  // Cambiado
                 .ToList();
             return Ok(relations);
         }
@@ -46,7 +46,7 @@ public class OsagaiaHornitzaileaController : ControllerBase
         using (var session = _sessionFactory.OpenSession())
         {
             var relations = session.Query<OsagaiaHornitzailea>()
-                .Where(oh => oh.HornitzaileakId == hornitzaileaId)
+                .Where(oh => oh.Hornitzailea.Id == hornitzaileaId)  // Cambiado
                 .ToList();
             return Ok(relations);
         }
@@ -54,25 +54,31 @@ public class OsagaiaHornitzaileaController : ControllerBase
 
     // POST
     [HttpPost]
-    public ActionResult<OsagaiaHornitzailea> Post([FromBody] OsagaiaHornitzailea relation)
+    public ActionResult<OsagaiaHornitzailea> Post([FromBody] OsagaiaHornitzaileaDto dto)  // Cambiado a DTO
     {
         using (var session = _sessionFactory.OpenSession())
         using (var transaction = session.BeginTransaction())
         {
             try
             {
-                var osagaia = session.Get<Osagaia>(relation.OsagaiakId);
-                var hornitzailea = session.Get<Hornitzailea>(relation.HornitzaileakId);
+                var osagaia = session.Get<Osagaia>(dto.OsagaiaId);  // Cambiado
+                var hornitzailea = session.Get<Hornitzailea>(dto.HornitzaileaId);  // Cambiado
 
                 if (osagaia == null || hornitzailea == null)
                     return BadRequest("Osagaia edo hornitzailea ez da existitzen");
 
                 var existing = session.Query<OsagaiaHornitzailea>()
-                    .FirstOrDefault(oh => oh.OsagaiakId == relation.OsagaiakId &&
-                                         oh.HornitzaileakId == relation.HornitzaileakId);
+                    .FirstOrDefault(oh => oh.Osagaia.Id == dto.OsagaiaId &&  // Cambiado
+                                         oh.Hornitzailea.Id == dto.HornitzaileaId);  // Cambiado
 
                 if (existing != null)
                     return BadRequest("Erlazioa dagoeneko existitzen da");
+
+                var relation = new OsagaiaHornitzailea
+                {
+                    Osagaia = osagaia,
+                    Hornitzailea = hornitzailea
+                };
 
                 session.Save(relation);
                 transaction.Commit();
@@ -121,8 +127,8 @@ public class OsagaiaHornitzaileaController : ControllerBase
             try
             {
                 var relation = session.Query<OsagaiaHornitzailea>()
-                    .FirstOrDefault(oh => oh.OsagaiakId == osagaiaId &&
-                                         oh.HornitzaileakId == hornitzaileaId);
+                    .FirstOrDefault(oh => oh.Osagaia.Id == osagaiaId &&  // Cambiado
+                                         oh.Hornitzailea.Id == hornitzaileaId);  // Cambiado
 
                 if (relation == null)
                     return NotFound();
@@ -166,4 +172,10 @@ public class OsagaiaHornitzaileaController : ControllerBase
             return Ok(hornitzailea.Osagaiak);
         }
     }
+}
+
+public class OsagaiaHornitzaileaDto
+{
+    public int OsagaiaId { get; set; }
+    public int HornitzaileaId { get; set; }
 }

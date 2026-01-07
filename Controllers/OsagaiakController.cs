@@ -26,7 +26,9 @@ public class OsagaiakController : ControllerBase
             {
                 Id = o.Id,
                 Izena = o.Izena,
+                AzkenPrezioa = o.AzkenPrezioa,
                 Stock = o.Stock,
+                GutxienekoStock = o.GutxienekoStock,
                 Eskatu = o.Eskatu
             })
             .ToList();
@@ -252,6 +254,8 @@ public class OsagaiaDto
 {
     public int Id { get; set; }
     public string Izena { get; set; }
+    public double AzkenPrezioa { get; set; }
     public int Stock { get; set; }
+    public int GutxienekoStock { get; set; }
     public bool Eskatu { get; set; }
 }
