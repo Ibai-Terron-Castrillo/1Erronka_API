@@ -17,6 +17,7 @@ public class EskaeraMap : ClassMap<Eskaera>
             .Table("Eskaerak_Osagaiak")
             .ParentKeyColumn("eskaerak_id")
             .ChildKeyColumn("osagaiak_id")
-            .Cascade.SaveUpdate();
+            .Cascade.SaveUpdate()
+            .LazyLoad();
     }
 }

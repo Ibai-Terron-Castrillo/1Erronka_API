@@ -13,7 +13,7 @@ public static class NHibernateHelper
     {
         return Fluently.Configure()
             .Database(MySQLConfiguration.Standard
-                .ConnectionString("Server=localhost;Database=erronka1;Uid=root;Pwd=1MG2024;"))//Server=192.168.2.101;Database=erronka1;Uid=2Taldea;Pwd=2Taldea2;
+                .ConnectionString("Server=localhost;Database=erronka1;Uid=root;Pwd=1MG2024;"))//Server=192.168.2.101;Database=erronka1;Uid=2Taldea;Pwd=2Taldea2  ;
             .Mappings(m => m.FluentMappings.AddFromAssemblyOf<Erabiltzailea>())
             .BuildSessionFactory();
     }

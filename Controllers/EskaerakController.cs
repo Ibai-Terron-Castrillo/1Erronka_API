@@ -15,79 +15,153 @@ public class EskaerakController : ControllerBase
         _sessionFactory = sessionFactory;
     }
 
-    // GET
+    // GET all
     [HttpGet]
-    public ActionResult<IEnumerable<Eskaera>> Get()
+    public ActionResult<IEnumerable<EskaeraDto>> Get()
     {
         using (var session = _sessionFactory.OpenSession())
         {
-            var eskaerak = session.Query<Eskaera>().OrderByDescending(e => e.EskaeraZenbakia).ToList();
+            var eskaerak = session.Query<Eskaera>()
+                .OrderByDescending(e => e.EskaeraZenbakia)
+                .Select(e => new EskaeraDto
+                {
+                    Id = e.Id,
+                    EskaeraZenbakia = e.EskaeraZenbakia,
+                    Totala = e.Totala,
+                    Egoera = e.Egoera,
+                    EskaeraPdf = e.EskaeraPdf
+                })
+                .ToList();
+
             return Ok(eskaerak);
         }
     }
 
-    // GET BY id
+    // GET by id
     [HttpGet("{id}")]
-    public ActionResult<Eskaera> Get(int id)
+    public ActionResult<EskaeraDetailDto> Get(int id)
     {
         using (var session = _sessionFactory.OpenSession())
         {
-            var eskaera = session.Get<Eskaera>(id);
-            if (eskaera == null)
+            var eskaeraExists = session.Query<Eskaera>()
+                .Any(e => e.Id == id);
+
+            if (!eskaeraExists)
                 return NotFound();
-            return Ok(eskaera);
+
+            var eskaeraDto = new EskaeraDetailDto();
+
+            var eskaera = session.Get<Eskaera>(id);
+            if (eskaera != null)
+            {
+                eskaeraDto.Id = eskaera.Id;
+                eskaeraDto.EskaeraZenbakia = eskaera.EskaeraZenbakia;
+                eskaeraDto.Totala = eskaera.Totala;
+                eskaeraDto.Egoera = eskaera.Egoera;
+                eskaeraDto.EskaeraPdf = eskaera.EskaeraPdf;
+            }
+
+            var osagaiak = session.Query<EskaeraOsagaia>()
+                .Where(eo => eo.Eskaera.Id == id) 
+                .Select(eo => new EskaeraOsagaiaDto
+                {
+                    Id = eo.Id,
+                    OsagaiaId = eo.Osagaia.Id,
+                    OsagaiaIzena = eo.Osagaia.Izena,
+                    Kopurua = eo.Kopurua,
+                    Prezioa = eo.Prezioa,
+                    Totala = eo.Totala
+                })
+                .ToList();
+
+            eskaeraDto.Osagaiak = osagaiak;
+
+            return Ok(eskaeraDto);
         }
     }
 
-    // Pendienteak lortu
+    // GET pendienteak
     [HttpGet("pendienteak")]
-    public ActionResult<IEnumerable<Eskaera>> GetPendienteak()
+    public ActionResult<IEnumerable<EskaeraDto>> GetPendienteak()
     {
         using (var session = _sessionFactory.OpenSession())
         {
             var eskaerak = session.Query<Eskaera>()
                 .Where(e => !e.Egoera)
                 .OrderByDescending(e => e.EskaeraZenbakia)
+                .Select(e => new EskaeraDto
+                {
+                    Id = e.Id,
+                    EskaeraZenbakia = e.EskaeraZenbakia,
+                    Totala = e.Totala,
+                    Egoera = e.Egoera,
+                    EskaeraPdf = e.EskaeraPdf
+                })
                 .ToList();
+
             return Ok(eskaerak);
         }
     }
 
-    // Bukatuak lortu
+    // GET bukatuak
     [HttpGet("bukatuak")]
-    public ActionResult<IEnumerable<Eskaera>> GetBukatuak()
+    public ActionResult<IEnumerable<EskaeraDto>> GetBukatuak()
     {
         using (var session = _sessionFactory.OpenSession())
         {
             var eskaerak = session.Query<Eskaera>()
                 .Where(e => e.Egoera)
                 .OrderByDescending(e => e.EskaeraZenbakia)
+                .Select(e => new EskaeraDto
+                {
+                    Id = e.Id,
+                    EskaeraZenbakia = e.EskaeraZenbakia,
+                    Totala = e.Totala,
+                    Egoera = e.Egoera,
+                    EskaeraPdf = e.EskaeraPdf
+                })
                 .ToList();
+
             return Ok(eskaerak);
         }
     }
 
     // POST
     [HttpPost]
-    public ActionResult<Eskaera> Post([FromBody] Eskaera eskaera)
+    public ActionResult<EskaeraDto> Post([FromBody] EskaeraCreateDto dto)
     {
         using (var session = _sessionFactory.OpenSession())
         using (var transaction = session.BeginTransaction())
         {
             try
             {
-                if (eskaera.EskaeraZenbakia == 0)
+                var eskaera = new Eskaera
                 {
-                    var lastEskaera = session.Query<Eskaera>()
-                        .OrderByDescending(e => e.EskaeraZenbakia)
-                        .FirstOrDefault();
+                    Totala = 0,
+                    Egoera = dto.Egoera,
+                    EskaeraPdf = dto.EskaeraPdf,
+                    Osagaiak = new List<Osagaia>()
+                };
 
-                    eskaera.EskaeraZenbakia = (lastEskaera?.EskaeraZenbakia ?? 0) + 1;
-                }
+                var lastEskaera = session.Query<Eskaera>()
+                    .OrderByDescending(e => e.EskaeraZenbakia)
+                    .FirstOrDefault();
+
+                eskaera.EskaeraZenbakia = (lastEskaera?.EskaeraZenbakia ?? 0) + 1;
 
                 session.Save(eskaera);
                 transaction.Commit();
-                return CreatedAtAction(nameof(Get), new { id = eskaera.Id }, eskaera);
+
+                var result = new EskaeraDto
+                {
+                    Id = eskaera.Id,
+                    EskaeraZenbakia = eskaera.EskaeraZenbakia,
+                    Totala = eskaera.Totala,
+                    Egoera = eskaera.Egoera,
+                    EskaeraPdf = eskaera.EskaeraPdf
+                };
+
+                return CreatedAtAction(nameof(Get), new { id = eskaera.Id }, result);
             }
             catch (Exception ex)
             {
@@ -99,11 +173,8 @@ public class EskaerakController : ControllerBase
 
     // PUT
     [HttpPut("{id}")]
-    public ActionResult Put(int id, [FromBody] Eskaera eskaera)
+    public ActionResult Put(int id, [FromBody] EskaeraUpdateDto dto)
     {
-        if (id != eskaera.Id)
-            return BadRequest("ID-ak ez datoz bat");
-
         using (var session = _sessionFactory.OpenSession())
         using (var transaction = session.BeginTransaction())
         {
@@ -113,10 +184,10 @@ public class EskaerakController : ControllerBase
                 if (existing == null)
                     return NotFound();
 
-                existing.EskaeraZenbakia = eskaera.EskaeraZenbakia;
-                existing.Totala = eskaera.Totala;
-                existing.Egoera = eskaera.Egoera;
-                existing.EskaeraPdf = eskaera.EskaeraPdf;
+                existing.EskaeraZenbakia = dto.EskaeraZenbakia;
+                existing.Totala = dto.Totala;
+                existing.Egoera = dto.Egoera;
+                existing.EskaeraPdf = dto.EskaeraPdf;
 
                 session.Update(existing);
                 transaction.Commit();
@@ -144,12 +215,14 @@ public class EskaerakController : ControllerBase
                     return NotFound();
 
                 session.Delete(eskaera);
+
                 transaction.Commit();
                 return NoContent();
             }
             catch (Exception ex)
             {
                 transaction.Rollback();
+                Console.WriteLine($"Error: {ex.Message}\n{ex.StackTrace}");
                 return StatusCode(500, $"Errorea: {ex.Message}");
             }
         }
@@ -171,12 +244,12 @@ public class EskaerakController : ControllerBase
                 eskaera.Egoera = true;
 
                 var eskaeraOsagaiak = session.Query<EskaeraOsagaia>()
-                    .Where(eo => eo.EskaerakId == id)
+                    .Where(eo => eo.Eskaera.Id == id)
                     .ToList();
 
                 foreach (var eo in eskaeraOsagaiak)
                 {
-                    var osagaia = session.Get<Osagaia>(eo.OsagaiakId);
+                    var osagaia = eo.Osagaia;
                     if (osagaia != null)
                     {
                         osagaia.Stock += eo.Kopurua;
@@ -199,44 +272,199 @@ public class EskaerakController : ControllerBase
 
     // Eskaeraren osagaiak lortu
     [HttpGet("{id}/osagaiak")]
-    public ActionResult<IEnumerable<EskaeraOsagaia>> GetEskaeraOsagaiak(int id)
+    public ActionResult<IEnumerable<EskaeraOsagaiaDto>> GetEskaeraOsagaiak(int id)
     {
         using (var session = _sessionFactory.OpenSession())
         {
             var eskaeraOsagaiak = session.Query<EskaeraOsagaia>()
-                .Where(eo => eo.EskaerakId == id)
+                .Where(eo => eo.Eskaera.Id == id)
+                .Select(eo => new EskaeraOsagaiaDto
+                {
+                    Id = eo.Id,
+                    OsagaiaId = eo.Osagaia.Id,
+                    OsagaiaIzena = eo.Osagaia.Izena,
+                    Kopurua = eo.Kopurua,
+                    Prezioa = eo.Prezioa,
+                    Totala = eo.Totala
+                })
                 .ToList();
+
             return Ok(eskaeraOsagaiak);
         }
     }
 
-    // Osagaia Gehitu
+    // Osagaia gehitu eskaerari
     [HttpPost("{id}/osagaiak")]
-    public ActionResult AddOsagaiaToEskaera(int id, [FromBody] EskaeraOsagaiaDto dto)
+    public ActionResult<EskaeraOsagaiaDto> AddOsagaiaToEskaera(int id, [FromBody] EskaeraOsagaiaCreateDto dto)
+    {
+        Console.WriteLine($"=== OSAGAIA GEHITZEN ESKAERARI {id} ===");
+        Console.WriteLine($"DTO jaso: OsagaiaId={dto?.OsagaiaId}, Kopurua={dto?.Kopurua}, Prezioa={dto?.Prezioa}");
+
+        if (dto == null)
+        {
+            Console.WriteLine("ERROR: DTO nulua da");
+            return BadRequest("Datuak ezin dira nuluan egon");
+        }
+
+        if (dto.OsagaiaId <= 0 || dto.Kopurua <= 0 || dto.Prezioa <= 0)
+        {
+            Console.WriteLine($"ERROR: Datuak baliogabeak - OsagaiaId:{dto.OsagaiaId}, Kopurua:{dto.Kopurua}, Prezioa:{dto.Prezioa}");
+            return BadRequest("Datuak baliogabeak");
+        }
+
+        using (var session = _sessionFactory.OpenSession())
+        {
+            Console.WriteLine("NHibernate saioa irekia");
+
+            using (var transaction = session.BeginTransaction())
+            {
+                try
+                {
+                    Console.WriteLine("Transakzioa hasita");
+
+                    var eskaera = session.Get<Eskaera>(id);
+                    if (eskaera == null)
+                    {
+                        Console.WriteLine($"ERROR: {id} ID-ko eskaera ez da aurkitu");
+                        return NotFound($"{id} ID-ko eskaera ez da aurkitu");
+                    }
+                    Console.WriteLine($"Eskaera kargatua: ID={eskaera.Id}, EskaeraZenbakia={eskaera.EskaeraZenbakia}");
+
+                    var osagaia = session.Get<Osagaia>(dto.OsagaiaId);
+                    if (osagaia == null)
+                    {
+                        Console.WriteLine($"ERROR: {dto.OsagaiaId} ID-ko osagaia ez da aurkitu");
+                        return NotFound($"{dto.OsagaiaId} ID-ko osagaia ez da aurkitu");
+                    }
+                    Console.WriteLine($"Osagaia kargatua: ID={osagaia.Id}, Izena={osagaia.Izena}");
+
+                    var existingRelation = session.Query<EskaeraOsagaia>()
+                        .FirstOrDefault(eo => eo.Eskaera.Id == id && eo.Osagaia.Id == dto.OsagaiaId);
+
+                    EskaeraOsagaia savedRelation = null;
+
+                    if (existingRelation != null)
+                    {
+                        Console.WriteLine($"OHARRA: {id} eskaeraren eta {dto.OsagaiaId} osagaiaren arteko harremana dagoeneko existitzen da");
+                        existingRelation.Kopurua += dto.Kopurua;
+                        existingRelation.Prezioa = dto.Prezioa;
+                        existingRelation.Totala = existingRelation.Kopurua * existingRelation.Prezioa;
+
+                        session.Update(existingRelation);
+                        savedRelation = existingRelation;
+                        Console.WriteLine($"Harremana eguneratua: ID={existingRelation.Id}, KopuruaBerria={existingRelation.Kopurua}");
+                    }
+                    else
+                    {
+                        var eskaeraOsagaia = new EskaeraOsagaia
+                        {
+                            Eskaera = eskaera,
+                            Osagaia = osagaia,
+                            Kopurua = dto.Kopurua,
+                            Prezioa = dto.Prezioa,
+                            Totala = dto.Kopurua * dto.Prezioa
+                        };
+
+                        Console.WriteLine($"Harreman berria sortzen: Kopurua={eskaeraOsagaia.Kopurua}, Prezioa={eskaeraOsagaia.Prezioa}, Totala={eskaeraOsagaia.Totala}");
+
+                        session.Save(eskaeraOsagaia);
+                        savedRelation = eskaeraOsagaia;
+                        Console.WriteLine($"Harremana gordeta ID honekin: {eskaeraOsagaia.Id}");
+                    }
+
+                    Console.WriteLine("Eskaeraren totala berrikalkulatzen...");
+
+                    var totalak = session.Query<EskaeraOsagaia>()
+                        .Where(eo => eo.Eskaera.Id == id)
+                        .Select(eo => eo.Totala)
+                        .ToList();
+
+                    var eskaerarenTotala = totalak.Any() ? totalak.Sum() : 0;
+
+                    Console.WriteLine($"Berrikalkulatutako totala: {eskaerarenTotala}");
+                    Console.WriteLine($"Aurreko totala: {eskaera.Totala}");
+
+                    eskaera.Totala = Math.Round(eskaerarenTotala, 2);
+                    session.Update(eskaera);
+                    Console.WriteLine($"Eskaera eguneratuta total berriarekin: {eskaera.Totala}");
+
+                    transaction.Commit();
+                    Console.WriteLine("Transakzioa arrakastaz burututa");
+
+                    if (savedRelation == null)
+                    {
+                        Console.WriteLine("ERROR: Gordetako harremana ezin izan da berreskuratu");
+                        return StatusCode(500, "Errorea harremana berreskuratzean");
+                    }
+
+                    var result = new EskaeraOsagaiaDto
+                    {
+                        Id = savedRelation.Id,
+                        OsagaiaId = osagaia.Id,
+                        OsagaiaIzena = osagaia.Izena,
+                        Kopurua = savedRelation.Kopurua,
+                        Prezioa = savedRelation.Prezioa,
+                        Totala = savedRelation.Totala
+                    };
+
+                    Console.WriteLine($"DTOa itzultzen: ID={result.Id}, OsagaiaIzena={result.OsagaiaIzena}");
+                    return Created($"api/eskaerak/{id}/osagaiak", result);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"=== ERROREA AddOsagaiaToEskaera metoduan ===");
+                    Console.WriteLine($"Mezua: {ex.Message}");
+                    Console.WriteLine($"StackTrace: {ex.StackTrace}");
+
+                    if (ex.InnerException != null)
+                    {
+                        Console.WriteLine($"Barneko Salbuespena: {ex.InnerException.Message}");
+                        Console.WriteLine($"Barneko StackTrace: {ex.InnerException.StackTrace}");
+                    }
+
+                    try
+                    {
+                        transaction.Rollback();
+                        Console.WriteLine("Transakzioa atzeratuta");
+                    }
+                    catch (Exception rollbackEx)
+                    {
+                        Console.WriteLine($"Errorea atzeratzean: {rollbackEx.Message}");
+                    }
+
+                    return StatusCode(500, $"Errorea: {ex.Message}");
+                }
+            }
+        }
+    }
+
+    // Osagaia ezabatu eskaeratik
+    [HttpDelete("{id}/osagaiak/{osagaiaId}")]
+    public ActionResult RemoveOsagaiaFromEskaera(int id, int osagaiaId)
     {
         using (var session = _sessionFactory.OpenSession())
         using (var transaction = session.BeginTransaction())
         {
             try
             {
-                var eskaera = session.Get<Eskaera>(id);
-                var osagaia = session.Get<Osagaia>(dto.OsagaiaId);
+                var eskaeraOsagaia = session.Query<EskaeraOsagaia>()
+                    .FirstOrDefault(eo => eo.Eskaera.Id == id && eo.Osagaia.Id == osagaiaId);
 
-                if (eskaera == null || osagaia == null)
+                if (eskaeraOsagaia == null)
                     return NotFound();
 
-                var eskaeraOsagaia = new EskaeraOsagaia
-                {
-                    EskaerakId = id,
-                    OsagaiakId = dto.OsagaiaId,
-                    Kopurua = dto.Kopurua,
-                    Prezioa = dto.Prezioa,
-                    Totala = dto.Kopurua * dto.Prezioa
-                };
+                var eskaera = session.Get<Eskaera>(id);
 
-                session.Save(eskaeraOsagaia);
+                session.Delete(eskaeraOsagaia);
 
-                eskaera.Totala += (int)Math.Round(eskaeraOsagaia.Totala);
+                var totalak = session.Query<EskaeraOsagaia>()
+                    .Where(eo => eo.Eskaera.Id == id)
+                    .Select(eo => eo.Totala)
+                    .ToList();
+
+                var eskaerarenTotala = totalak.Any() ? totalak.Sum() : 0;
+
+                eskaera.Totala = Math.Round(eskaerarenTotala, 2);
                 session.Update(eskaera);
 
                 transaction.Commit();
@@ -251,7 +479,46 @@ public class EskaerakController : ControllerBase
     }
 }
 
+public class EskaeraDto
+{
+    public int Id { get; set; }
+    public int EskaeraZenbakia { get; set; }
+    public double Totala { get; set; }
+    public bool Egoera { get; set; }
+    public string EskaeraPdf { get; set; }
+}
+
+public class EskaeraDetailDto : EskaeraDto
+{
+    public List<EskaeraOsagaiaDto> Osagaiak { get; set; } = new List<EskaeraOsagaiaDto>();
+}
+
+public class EskaeraCreateDto
+{
+    public double Totala { get; set; }
+    public bool Egoera { get; set; }
+    public string EskaeraPdf { get; set; }
+}
+
+public class EskaeraUpdateDto
+{
+    public int EskaeraZenbakia { get; set; }
+    public double Totala { get; set; }
+    public bool Egoera { get; set; }
+    public string EskaeraPdf { get; set; }
+}
+
 public class EskaeraOsagaiaDto
+{
+    public int Id { get; set; }
+    public int OsagaiaId { get; set; }
+    public string OsagaiaIzena { get; set; }
+    public int Kopurua { get; set; }
+    public double Prezioa { get; set; }
+    public double Totala { get; set; }
+}
+
+public class EskaeraOsagaiaCreateDto
 {
     public int OsagaiaId { get; set; }
     public int Kopurua { get; set; }

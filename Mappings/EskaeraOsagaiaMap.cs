@@ -15,13 +15,10 @@ public class EskaeraOsagaiaMap : ClassMap<EskaeraOsagaia>
         References(x => x.Eskaera)
             .Column("eskaerak_id")
             .Not.Nullable()
-            .Insert()
-            .Update();
+            .Cascade.Delete();
 
         References(x => x.Osagaia)
             .Column("osagaiak_id")
-            .Not.Nullable()
-            .Insert()
-            .Update();
+            .Not.Nullable();
     }
 }
