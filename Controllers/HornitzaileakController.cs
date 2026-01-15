@@ -27,6 +27,7 @@ public class HornitzaileakController : ControllerBase
                 Id = h.Id,
                 Izena = h.Izena,
                 Cif = h.Cif,
+                Helbidea = h.Helbidea,
                 Sektorea = h.Sektorea,
                 Telefonoa = h.Telefonoa,
                 Email = h.Email
@@ -44,7 +45,7 @@ public class HornitzaileakController : ControllerBase
         {
             var hornitzailea = session.Get<Hornitzailea>(id);
             if (hornitzailea == null)
-                return NotFound();
+                return NotFound($"Hornitzailea ez da existitzen ID: {id}");
             return Ok(hornitzailea);
         }
     }
@@ -103,7 +104,7 @@ public class HornitzaileakController : ControllerBase
             {
                 var existing = session.Get<Hornitzailea>(id);
                 if (existing == null)
-                    return NotFound();
+                    return NotFound($"Hornitzailea ez da existitzen ID: {id}");
 
                 if (existing.Cif != hornitzailea.Cif)
                 {
@@ -144,7 +145,7 @@ public class HornitzaileakController : ControllerBase
             {
                 var hornitzailea = session.Get<Hornitzailea>(id);
                 if (hornitzailea == null)
-                    return NotFound();
+                    return NotFound($"Hornitzailea ez da existitzen ID: {id}");
 
                 var osagaiakCount = session.Query<OsagaiaHornitzailea>()
                     .Count(oh => oh.Hornitzailea.Id == id);
@@ -166,20 +167,24 @@ public class HornitzaileakController : ControllerBase
 
     // Hornitzailearen Osagaiak lortu
     [HttpGet("{id}/osagaiak")]
-    public ActionResult<IEnumerable<OsagaiaSimpleDto>> GetOsagaiak(int id)
+    public ActionResult<IEnumerable<OsagaiaHornitzaileDto>> GetOsagaiak(int id)
     {
         using var session = _sessionFactory.OpenSession();
 
-        var exists = session.Get<Hornitzailea>(id);
-        if (exists == null)
-            return NotFound();
+        var hornitzailea = session.Get<Hornitzailea>(id);
+        if (hornitzailea == null)
+            return NotFound($"Hornitzailea ez da existitzen ID: {id}");
 
         var osagaiak = session.Query<OsagaiaHornitzailea>()
             .Where(oh => oh.Hornitzailea.Id == id)
-            .Select(oh => new OsagaiaSimpleDto
+            .Select(oh => new OsagaiaHornitzaileDto
             {
                 Id = oh.Osagaia.Id,
-                Izena = oh.Osagaia.Izena
+                Izena = oh.Osagaia.Izena,
+                AzkenPrezioa = oh.Osagaia.AzkenPrezioa,
+                Stock = oh.Osagaia.Stock,
+                GutxienekoStock = oh.Osagaia.GutxienekoStock,
+                Eskatu = oh.Osagaia.Eskatu
             })
             .ToList();
 
@@ -198,8 +203,11 @@ public class HornitzaileakController : ControllerBase
                 var hornitzailea = session.Get<Hornitzailea>(id);
                 var osagaia = session.Get<Osagaia>(osagaiaId);
 
-                if (hornitzailea == null || osagaia == null)
-                    return NotFound();
+                if (hornitzailea == null)
+                    return NotFound($"Hornitzailea ez da existitzen ID: {id}");
+
+                if (osagaia == null)
+                    return NotFound($"Osagaia ez da existitzen ID: {osagaiaId}");
 
                 var exists = session.Query<OsagaiaHornitzailea>()
                     .Any(oh => oh.Hornitzailea.Id == id && oh.Osagaia.Id == osagaiaId);
@@ -238,7 +246,7 @@ public class HornitzaileakController : ControllerBase
                     .FirstOrDefault(oh => oh.Hornitzailea.Id == id && oh.Osagaia.Id == osagaiaId);
 
                 if (rel == null)
-                    return NotFound();
+                    return NotFound("Erlazioa ez da existitzen");
 
                 session.Delete(rel);
                 transaction.Commit();
@@ -257,14 +265,19 @@ public class HornitzaileakController : ControllerBase
         public int Id { get; set; }
         public string Izena { get; set; }
         public string Cif { get; set; }
+        public string Helbidea { get; set; }
         public string Sektorea { get; set; }
         public string Telefonoa { get; set; }
         public string Email { get; set; }
     }
 
-    public class OsagaiaSimpleDto
+    public class OsagaiaHornitzaileDto
     {
         public int Id { get; set; }
         public string Izena { get; set; }
+        public double AzkenPrezioa { get; set; }
+        public int Stock { get; set; }
+        public int GutxienekoStock { get; set; }
+        public bool Eskatu { get; set; }
     }
 }
