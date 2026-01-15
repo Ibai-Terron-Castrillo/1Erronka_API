@@ -133,7 +133,6 @@ public class PlaterakController : ControllerBase
 				if (platera == null)
 					return NotFound();
 
-				// Verificar si tiene relaciones con osagaiak
 				var relacionesCount = session.Query<PlaterakOsagaia>()
 					.Count(po => po.PlaterakId == id);
 
