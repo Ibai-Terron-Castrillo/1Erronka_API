@@ -17,7 +17,7 @@ public class ErreserbaMap : ClassMap<Erreserba>
         HasOne(x => x.Faktura)
             .PropertyRef(r => r.Erreserba)
             .Cascade.All();
-
+            
         HasManyToMany(x => x.Mahaiak)
             .Table("Erreserbak_Mahaiak")
             .ParentKeyColumn("erreserbak_id")
