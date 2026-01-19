@@ -8,8 +8,6 @@ public class Komanda
     }
 
     public virtual int Id { get; set; }
-    public virtual int PlaterakId { get; set; }
-    public virtual int FakturakId { get; set; }
     public virtual int Kopurua { get; set; }
     public virtual double Totala { get; set; }
     public virtual string Oharrak { get; set; }

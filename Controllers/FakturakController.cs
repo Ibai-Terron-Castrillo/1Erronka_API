@@ -132,7 +132,7 @@ public class FakturakController : ControllerBase
                     return NotFound();
 
                 var komandakCount = session.Query<Komanda>()
-                    .Count(k => k.FakturakId == id);
+                    .Count(k => k.Faktura.Id == id); 
 
                 if (komandakCount > 0)
                     return BadRequest($"Ezin da faktura ezabatu, {komandakCount} komanda dauzka");
@@ -148,6 +148,7 @@ public class FakturakController : ControllerBase
             }
         }
     }
+
 
     // Ordaindu
     [HttpPatch("{id}/ordaindu")]
@@ -186,10 +187,11 @@ public class FakturakController : ControllerBase
                 return NotFound();
 
             var totala = session.Query<Komanda>()
-                .Where(k => k.FakturakId == id)
+                .Where(k => k.Faktura.Id == id) 
                 .Sum(k => k.Totala);
 
             return Ok(totala);
         }
     }
+
 }
