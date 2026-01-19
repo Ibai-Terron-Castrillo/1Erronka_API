@@ -1,4 +1,4 @@
-public class PlateraDto
+public class PlaterakDto
 {
     public int Id { get; set; }
     public string Izena { get; set; }
