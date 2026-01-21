@@ -16,8 +16,6 @@ public class KategoriakController : ControllerBase
 
     // GET ALL
     [HttpGet]
-    // GET ALL
-    [HttpGet]
     public IActionResult GetAll()
     {
         using var session = _sessionFactory.OpenSession();

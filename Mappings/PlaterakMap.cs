@@ -20,7 +20,7 @@ public class PlaterakMap : ClassMap<Platerak>
             .Table("Platerak_Osagaiak")
             .ParentKeyColumn("platerak_id")
             .ChildKeyColumn("osagaiak_id")
-            .Cascade.SaveUpdate()
+            .Cascade.AllDeleteOrphan()
             .LazyLoad();
     }
 }

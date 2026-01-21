@@ -4,238 +4,786 @@ using NHibernate.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
+using API.DTO;
 
-[ApiController]
-[Route("api/[controller]")]
-public class PlaterakController : ControllerBase
+namespace API.Controllers
 {
-    private readonly ISessionFactory _sessionFactory;
+	[ApiController]
+	[Route("api/[controller]")]
+	public class PlaterakController : ControllerBase
+	{
+		private readonly ISessionFactory _sessionFactory;
 
-    public PlaterakController(ISessionFactory sessionFactory)
-    {
-        _sessionFactory = sessionFactory;
-    }
+		public PlaterakController(ISessionFactory sessionFactory)
+		{
+			_sessionFactory = sessionFactory;
+		}
 
-    // ================= GET ALL =================
-    [HttpGet]
-    public IActionResult Get()
-    {
-        using var session = _sessionFactory.OpenSession();
+		// GET: api/platerak
+		[HttpGet]
+		public IActionResult Get()
+		{
+			using var session = _sessionFactory.OpenSession();
 
-        var platerak = session.Query<Platerak>()
-            .Select(p => new PlaterakDto
-            {
-                Id = p.Id,
-                Izena = p.Izena,
-                Prezioa = p.Prezioa,
-                Stock = p.Stock,
-                KategoriaId = p.Kategoriak != null ? p.Kategoriak.Id : 0
-            })
-            .ToList();
+			var platerak = session.Query<Platerak>()
+				.Fetch(p => p.Kategoriak)
+				.Select(p => new PlaterakDto
+				{
+					Id = p.Id,
+					Izena = p.Izena,
+					Prezioa = p.Prezioa,
+					Stock = p.Stock,
+					KategoriaId = p.Kategoriak != null ? p.Kategoriak.Id : 0,
+					KategoriaIzena = p.Kategoriak != null ? p.Kategoriak.Izena : "Kategoria gabe"
+				})
+				.ToList();
 
-        return Ok(platerak);
-    }
+			return Ok(platerak);
+		}
 
-    // ================= GET BY ID =================
-    [HttpGet("{id}")]
-    public IActionResult Get(int id)
-    {
-        using var session = _sessionFactory.OpenSession();
+		// GET: api/platerak/{id}
+		[HttpGet("{id}")]
+		public ActionResult<PlaterakDto> Get(int id)
+		{
+			using var session = _sessionFactory.OpenSession();
 
-        var platera = session.Query<Platerak>()
-            .Fetch(p => p.Kategoriak)
-            .FirstOrDefault(p => p.Id == id);
+			var platera = session.Query<Platerak>()
+				.Fetch(p => p.Kategoriak)
+				.Where(p => p.Id == id)
+				.Select(p => new PlaterakDto
+				{
+					Id = p.Id,
+					Izena = p.Izena,
+					Prezioa = p.Prezioa,
+					Stock = p.Stock,
+					KategoriaId = p.Kategoriak != null ? p.Kategoriak.Id : 0,
+					KategoriaIzena = p.Kategoriak != null ? p.Kategoriak.Izena : "Kategoria gabe"
+				})
+				.FirstOrDefault();
 
-        if (platera == null)
-            return NotFound();
+			if (platera == null)
+				return NotFound();
 
-        return Ok(platera);
-    }
+			return Ok(platera);
+		}
 
-    // ================= GET BY KATEGORIA =================
-    [HttpGet("kategoria/{kategoriaId}")]
-    public IActionResult GetByKategoria(int kategoriaId)
-    {
-        using var session = _sessionFactory.OpenSession();
+		// POST: api/platerak
+		[HttpPost]
+		public ActionResult<PlaterakDto> Post([FromBody] PlateraPostDto plateraDto)
+		{
+			using var session = _sessionFactory.OpenSession();
+			using var transaction = session.BeginTransaction();
 
-        var platerak = session.Query<Platerak>()
-            .Where(p => p.Kategoriak != null && p.Kategoriak.Id == kategoriaId)
-            .Select(p => new PlaterakDto
-            {
-                Id = p.Id,
-                Izena = p.Izena,
-                Prezioa = p.Prezioa,
-                Stock = p.Stock,
-                KategoriaId = p.Kategoriak.Id
-            })
-            .ToList();
+			try
+			{
+				if (string.IsNullOrWhiteSpace(plateraDto.Izena))
+					return BadRequest("Izena ezin da hutsik egon");
 
-        return Ok(platerak);
-    }
+				if (plateraDto.Prezioa <= 0)
+					return BadRequest("Prezioa 0 baino handiagoa izan behar da");
 
+				if (plateraDto.Stock < 0)
+					return BadRequest("Stock ezin da negatiboa izan");
 
-    // ================= CREATE =================
-    [HttpPost]
-    public IActionResult Post([FromBody] Platerak platera)
-    {
-        using var session = _sessionFactory.OpenSession();
-        using var tx = session.BeginTransaction();
+				if (plateraDto.Kategoria == null || plateraDto.Kategoria.Id <= 0)
+					return BadRequest("Kategoria ID baliozkoa izan behar da");
 
-        if (string.IsNullOrWhiteSpace(platera.Izena))
-            return BadRequest("Izena ezin da hutsik egon");
+				var kategoriak = session.Get<Kategoriak>(plateraDto.Kategoria.Id);
+				if (kategoriak == null)
+					return BadRequest("Kategoria ez da existitzen");
 
-        if (platera.Prezioa <= 0)
-            return BadRequest("Prezioa okerra da");
+				var platera = new Platerak
+				{
+					Izena = plateraDto.Izena,
+					Prezioa = plateraDto.Prezioa,
+					Stock = plateraDto.Stock,
+					Kategoriak = kategoriak
+				};
 
-        if (platera.Stock < 0)
-            return BadRequest("Stock ezin da negatiboa izan");
+				session.Save(platera);
+				transaction.Commit();
 
-        if (platera.Kategoriak == null || platera.Kategoriak.Id <= 0)
-            return BadRequest("Kategoria derrigorrezkoa da");
+				var responseDto = new PlaterakDto
+				{
+					Id = platera.Id,
+					Izena = platera.Izena,
+					Prezioa = platera.Prezioa,
+					Stock = platera.Stock,
+					KategoriaId = kategoriak.Id,
+					KategoriaIzena = kategoriak.Izena
+				};
 
-        var kategoria = session.Get<Kategoriak>(platera.Kategoriak.Id);
-        if (kategoria == null)
-            return BadRequest("Kategoria ez da existitzen");
+				return CreatedAtAction(nameof(Get), new { id = platera.Id }, responseDto);
+			}
+			catch (Exception ex)
+			{
+				transaction.Rollback();
+				return StatusCode(500, $"Errorea: {ex.Message}");
+			}
+		}
 
-        platera.Kategoriak = kategoria;
+		// PUT: api/platerak/{id}
+		[HttpPut("{id}")]
+		public ActionResult Put(int id, [FromBody] JsonElement body)
+		{
+			using var session = _sessionFactory.OpenSession();
+			using var transaction = session.BeginTransaction();
 
-        session.Save(platera);
-        tx.Commit();
+			try
+			{
+				// 1. Bilatu platera
+				var existing = session.Get<Platerak>(id);
+				if (existing == null)
+				{
+					return NotFound(new { error = "Platerra ez da existitzen", id });
+				}
 
-        return Ok();
-    }
+				// 2. Datuak eguneratu
+				existing.Izena = body.GetProperty("izena").GetString();
+				existing.Prezioa = body.GetProperty("prezioa").GetDouble();
+				existing.Stock = body.GetProperty("stock").GetInt32();
 
-    // ================= UPDATE =================
-    [HttpPut("{id}")]
-    public IActionResult Put(int id, [FromBody] Platerak platera)
-    {
-        if (id != platera.Id)
-            return BadRequest("ID-ak ez datoz bat");
+				// 3. Kategoria eguneratu
+				if (body.TryGetProperty("kategoria", out JsonElement kategoriaJson))
+				{
+					int kategoriaId = kategoriaJson.GetProperty("id").GetInt32();
+					if (kategoriaId > 0)
+					{
+						var kategoriak = session.Get<Kategoriak>(kategoriaId);
+						if (kategoriak != null)
+						{
+							existing.Kategoriak = kategoriak;
+						}
+					}
+				}
 
-        using var session = _sessionFactory.OpenSession();
-        using var tx = session.BeginTransaction();
+				// 4. BALIDAZIOAK
+				if (string.IsNullOrWhiteSpace(existing.Izena))
+					return BadRequest(new { error = "Izena ezin da hutsik egon" });
 
-        var existing = session.Query<Platerak>()
-            .Fetch(p => p.Kategoriak)
-            .FirstOrDefault(p => p.Id == id);
+				if (existing.Prezioa <= 0)
+					return BadRequest(new { error = "Prezioa 0 baino handiagoa izan behar da" });
 
-        if (existing == null)
-            return NotFound();
+				if (existing.Stock < 0)
+					return BadRequest(new { error = "Stock ezin da negatiboa izan" });
 
-        existing.Izena = platera.Izena;
-        existing.Prezioa = platera.Prezioa;
-        existing.Stock = platera.Stock;
+				if (body.TryGetProperty("osagaiak", out JsonElement osagaiakArray))
+				{
+					// 5.1. Ezabatu erlazio zaharrak
+					var deleteQuery = session.CreateSQLQuery(
+						"DELETE FROM Platerak_Osagaiak WHERE platerak_id = :platerakId");
+					deleteQuery.SetParameter("platerakId", id);
+					int deleted = deleteQuery.ExecuteUpdate();
+					Console.WriteLine($"{deleted} erlazio zahar ezabatuak");
 
-        if (platera.Kategoriak != null && platera.Kategoriak.Id > 0)
-        {
-            var kat = session.Get<Kategoriak>(platera.Kategoriak.Id);
-            if (kat != null)
-                existing.Kategoriak = kat;
-        }
+					// 5.2. Gehitu erlazio berriak
+					int added = 0;
+					foreach (var osagaiJson in osagaiakArray.EnumerateArray())
+					{
+						int osagaiId = osagaiJson.GetProperty("id").GetInt32();
+						int kopurua = osagaiJson.GetProperty("kopurua").GetInt32();
 
-        session.Update(existing);
-        tx.Commit();
+						var insertQuery = session.CreateSQLQuery(
+							"INSERT INTO Platerak_Osagaiak (platerak_id, osagaiak_id, kopurua) " +
+							"VALUES (:platerakId, :osagaiakId, :kopurua)");
+						insertQuery.SetParameter("platerakId", id);
+						insertQuery.SetParameter("osagaiakId", osagaiId);
+						insertQuery.SetParameter("kopurua", kopurua);
+						insertQuery.ExecuteUpdate();
+						added++;
+					}
+					Console.WriteLine($"{added} osagai berri gehitu dira");
+				}
 
-        return NoContent();
-    }
+				// 6. Gorde platerra
+				session.Update(existing);
+				transaction.Commit();
 
-    // ================= DELETE =================
-    [HttpDelete("{id}")]
-    public IActionResult Delete(int id)
-    {
-        using var session = _sessionFactory.OpenSession();
-        using var tx = session.BeginTransaction();
+				return Ok(new
+				{
+					success = true,
+					message = "Platerra eta osagaiak eguneratu dira",
+					platerraId = id,
+					platerraIzena = existing.Izena
+				});
+			}
+			catch (Exception ex)
+			{
+				transaction.Rollback();
+				Console.WriteLine($"Errorea: {ex.Message}");
+				return StatusCode(500, new
+				{
+					error = "Errorea",
+					message = ex.Message,
+					stackTrace = ex.StackTrace
+				});
+			}
+		}
 
-        var platera = session.Get<Platerak>(id);
-        if (platera == null)
-            return NotFound();
+		// DELETE: api/platerak/{id}
+		[HttpDelete("{id}")]
+		public ActionResult Delete(int id)
+		{
+			using var session = _sessionFactory.OpenSession();
+			using var transaction = session.BeginTransaction();
 
-        var erlazioak = session.Query<PlaterakOsagaia>()
-            .Count(po => po.Platerak.Id == id);
+			try
+			{
+				var platera = session.Query<Platerak>()
+					.FirstOrDefault(p => p.Id == id);
 
-        if (erlazioak > 0)
-            return BadRequest("Platera osagaiekin erlazionatuta dago");
+				if (platera == null)
+				{
+					return NotFound(new
+					{
+						error = "Platerra ez da existitzen",
+						id = id
+					});
+				}
 
-        session.Delete(platera);
-        tx.Commit();
+				var komandakCount = 0;
+				try
+				{
+					var komandakQuery = "SELECT COUNT(*) FROM Komandak WHERE platerak_id = :id";
+					var query = session.CreateSQLQuery(komandakQuery);
+					query.SetParameter("id", id);
+					komandakCount = Convert.ToInt32(query.UniqueResult());
+				}
+				catch (Exception sqlEx)
+				{
+					Console.WriteLine($"Error al contar komandak: {sqlEx.Message}");
+				}
 
-        return NoContent();
-    }
+				if (komandakCount > 0)
+				{
+					return BadRequest(new
+					{
+						error = "Ezin da platerra ezabatu",
+						mezua = $"Platerra {komandakCount} komanda/fakturetan agertzen da",
+						aukerak = new[]
+						{
+					"Ezabatu komanda horiek lehenik (/api/platerak/{id}/komandak/all)",
+					"Erabili desaktibatu (PATCH /api/platerak/{id}/desaktibatu)",
+					"Aldatu stock-a 0-ra (PATCH /api/platerak/{id}/stock)"
+				},
+						komandaKopurua = komandakCount,
+						platerraId = id,
+						platerraIzena = platera.Izena
+					});
+				}
 
-    // ================= STOCK =================
-    [HttpPost("jaitsi-stock")]
-    public IActionResult JaitsiStock([FromBody] StockAldaketaDto dto)
-    {
-        using var session = _sessionFactory.OpenSession();
-        using var tx = session.BeginTransaction();
+				var relacionesEliminadas = 0;
+				try
+				{
+					var deleteQuery = session.CreateSQLQuery(
+						"DELETE FROM Platerak_Osagaiak WHERE platerak_id = :id");
+					deleteQuery.SetParameter("id", id);
+					relacionesEliminadas = deleteQuery.ExecuteUpdate();
+				}
+				catch (Exception relEx)
+				{
+					try
+					{
+						var hqlDelete = session.CreateQuery(
+							"DELETE FROM PlaterakOsagaiak po WHERE po.Platerak.Id = :id");
+						hqlDelete.SetParameter("id", id);
+						relacionesEliminadas = hqlDelete.ExecuteUpdate();
+					}
+					catch
+					{
+						relacionesEliminadas = 0;
+					}
+				}
 
-        var platera = session.Get<Platerak>(dto.PlaterId);
-        if (platera == null)
-            return NotFound();
+				session.Delete(platera);
 
-        if (platera.Stock < dto.Kopurua)
-            return BadRequest(false);
+				transaction.Commit();
 
-        
-        var osagaiak = session.Query<PlaterakOsagaia>()
-            .Where(po => po.Platerak.Id == dto.PlaterId)
-            .Fetch(po => po.Osagaia)
-            .ToList();
+				return Ok(new
+				{
+					mezua = "Platerra ondo ezabatu da",
+					platerraId = id,
+					platerraIzena = platera.Izena,
+					erlazioakEliminadas = relacionesEliminadas,
+					data = DateTime.Now
+				});
+			}
+			catch (Exception ex)
+			{
+				try
+				{
+					transaction.Rollback();
+				}
+				catch (Exception rollbackEx)
+				{
+					Console.WriteLine($"Error: {rollbackEx.Message}");
+				}
 
-        
-        foreach (var po in osagaiak)
-        {
-            int beharrezkoa = po.Kopurua * dto.Kopurua;
+				return StatusCode(500, new
+				{
+					error = "Errorea platerra ezabatzerakoan",
+					mezua = ex.Message,
+					innerError = ex.InnerException?.Message,
+					tipoa = ex.GetType().Name,
+					platerraId = id,
+					gomendioa = "Egiaztatu datu-baseko erlazioak eta murrizketak"
+				});
+			}
+		}
 
-            if (po.Osagaia.Stock < beharrezkoa)
-                return BadRequest(false);
-        }
+		// PATCH: api/platerak/{id}/stock
+		[HttpPatch("{id}/stock")]
+		public ActionResult UpdateStock(int id, [FromBody] StockEguneratuDto update)
+		{
+			using var session = _sessionFactory.OpenSession();
+			using var transaction = session.BeginTransaction();
 
-        
-        platera.Stock -= dto.Kopurua;
-        session.Update(platera);
+			try
+			{
+				var platera = session.Query<Platerak>()
+					.FirstOrDefault(p => p.Id == id);
 
-     
-        foreach (var po in osagaiak)
-        {
-            po.Osagaia.Stock -= po.Kopurua * dto.Kopurua;
-            session.Update(po.Osagaia);
-        }
+				if (platera == null)
+					return NotFound();
 
-        tx.Commit();
-        return Ok(true);
-    }
+				platera.Stock += update.Kopurua;
 
+				if (platera.Stock < 0)
+					return BadRequest("Ezin da stock negatiboa izan");
 
-    [HttpPost("itzuli-stock")]
-    public IActionResult ItzuliStock([FromBody] StockAldaketaDto dto)
-    {
-        using var session = _sessionFactory.OpenSession();
-        using var tx = session.BeginTransaction();
+				session.Update(platera);
+				transaction.Commit();
 
-        var platera = session.Get<Platerak>(dto.PlaterId);
-        if (platera == null)
-            return NotFound();
+				var responseDto = new PlaterakDto
+				{
+					Id = platera.Id,
+					Izena = platera.Izena,
+					Prezioa = platera.Prezioa,
+					Stock = platera.Stock,
+					KategoriaId = platera.Kategoriak?.Id ?? 0,
+					KategoriaIzena = platera.Kategoriak?.Izena ?? "Kategoria gabe"
+				};
 
-        
-        var osagaiak = session.Query<PlaterakOsagaia>()
-            .Where(po => po.Platerak.Id == dto.PlaterId)
-            .Fetch(po => po.Osagaia)
-            .ToList();
+				return Ok(responseDto);
+			}
+			catch (Exception ex)
+			{
+				transaction.Rollback();
+				return StatusCode(500, $"Errorea: {ex.Message}");
+			}
+		}
 
-       
-        platera.Stock += dto.Kopurua;
-        session.Update(platera);
+		// PATCH: api/platerak/{id}/desaktibatu
+		[HttpPatch("{id}/desaktibatu")]
+		public ActionResult DesaktibatuPlaterra(int id, [FromBody] PlateraDesaktibatuDto desaktibatuDto = null)
+		{
+			using var session = _sessionFactory.OpenSession();
+			using var transaction = session.BeginTransaction();
 
-        
-        foreach (var po in osagaiak)
-        {
-            po.Osagaia.Stock += po.Kopurua * dto.Kopurua;
-            session.Update(po.Osagaia);
-        }
+			try
+			{
+				var platera = session.Query<Platerak>()
+					.FirstOrDefault(p => p.Id == id);
 
-        tx.Commit();
-        return Ok(true);
-    }
+				if (platera == null)
+					return NotFound();
 
+				// Desaktibatu (stock = 0)
+				platera.Stock = 0;
+
+				session.Update(platera);
+				transaction.Commit();
+
+				var responseDto = new PlaterakDto
+				{
+					Id = platera.Id,
+					Izena = platera.Izena,
+					Prezioa = platera.Prezioa,
+					Stock = 0,
+					KategoriaId = platera.Kategoriak?.Id ?? 0,
+					KategoriaIzena = platera.Kategoriak?.Izena ?? "Kategoria gabe"
+				};
+
+				return Ok(new
+				{
+					mezua = "Platerra desaktibatu da (stock = 0)",
+					platerra = responseDto,
+					arrazoia = desaktibatuDto?.Arrazoia ?? "Eskariaren bidez desaktibatua"
+				});
+			}
+			catch (Exception ex)
+			{
+				transaction.Rollback();
+				return StatusCode(500, $"Errorea: {ex.Message}");
+			}
+		}
+
+		// GET: api/platerak/{id}/osagaiak
+		[HttpGet("{id}/osagaiak")]
+		public ActionResult<IEnumerable<PlaterakOsagaiaDto>> GetOsagaiak(int id)
+		{
+			using var session = _sessionFactory.OpenSession();
+
+			var platera = session.Query<Platerak>()
+				.FirstOrDefault(p => p.Id == id);
+
+			if (platera == null)
+				return NotFound();
+
+			var query = @"
+                SELECT 
+                    po.id as Id,
+                    po.osagaiak_id as OsagaiakId,
+                    po.platerak_id as PlaterakId,
+                    po.kopurua as Kopurua,
+                    o.izena as OsagaiaIzena,
+                    o.azken_prezioa as OsagaiaPrezioa
+                FROM Platerak_Osagaiak po
+                INNER JOIN Osagaiak o ON po.osagaiak_id = o.id
+                WHERE po.platerak_id = :platerakId";
+
+			var osagaiak = session.CreateSQLQuery(query)
+				.SetParameter("platerakId", id)
+				.SetResultTransformer(NHibernate.Transform.Transformers.AliasToBean<PlaterakOsagaiaDto>())
+				.List<PlaterakOsagaiaDto>();
+
+			return Ok(osagaiak);
+		}
+
+		// GET: api/platerak/search/{term}
+		[HttpGet("search/{term}")]
+		public ActionResult<IEnumerable<PlaterakDto>> Search(string term)
+		{
+			using var session = _sessionFactory.OpenSession();
+
+			var platerak = session.Query<Platerak>()
+				.Where(p => p.Izena.Contains(term))
+				.Fetch(p => p.Kategoriak)
+				.Select(p => new PlaterakDto
+				{
+					Id = p.Id,
+					Izena = p.Izena,
+					Prezioa = p.Prezioa,
+					Stock = p.Stock,
+					KategoriaId = p.Kategoriak != null ? p.Kategoriak.Id : 0,
+					KategoriaIzena = p.Kategoriak != null ? p.Kategoriak.Izena : "Kategoria gabe"
+				})
+				.ToList();
+
+			return Ok(platerak);
+		}
+
+		// GET: api/platerak/kategoria/{kategoriaId}
+		[HttpGet("kategoria/{kategoriaId}")]
+		public ActionResult<IEnumerable<PlaterakDto>> GetByKategoria(int kategoriaId)
+		{
+			using var session = _sessionFactory.OpenSession();
+
+			var platerak = session.Query<Platerak>()
+				.Where(p => p.Kategoriak != null && p.Kategoriak.Id == kategoriaId)
+				.Fetch(p => p.Kategoriak)
+				.Select(p => new PlaterakDto
+				{
+					Id = p.Id,
+					Izena = p.Izena,
+					Prezioa = p.Prezioa,
+					Stock = p.Stock,
+					KategoriaId = p.Kategoriak.Id,
+					KategoriaIzena = p.Kategoriak.Izena
+				})
+				.ToList();
+
+			return Ok(platerak);
+		}
+
+		// GET: api/platerak/stock-gutxi
+		[HttpGet("stock-gutxi")]
+		public ActionResult<IEnumerable<PlaterakDto>> GetStockGutxi()
+		{
+			using var session = _sessionFactory.OpenSession();
+
+			var platerak = session.Query<Platerak>()
+				.Where(p => p.Stock < 10)
+				.Fetch(p => p.Kategoriak)
+				.Select(p => new PlaterakDto
+				{
+					Id = p.Id,
+					Izena = p.Izena,
+					Prezioa = p.Prezioa,
+					Stock = p.Stock,
+					KategoriaId = p.Kategoriak != null ? p.Kategoriak.Id : 0,
+					KategoriaIzena = p.Kategoriak != null ? p.Kategoriak.Izena : "Kategoria gabe"
+				})
+				.ToList();
+
+			return Ok(platerak);
+		}
+
+		// GET: api/platerak/{id}/kostua
+		[HttpGet("{id}/kostua")]
+		public ActionResult<double> KalkulatuKostua(int id)
+		{
+			using var session = _sessionFactory.OpenSession();
+
+			var query = @"
+                SELECT SUM(po.kopurua * o.azken_prezioa) as TotalKostua
+                FROM Platerak_Osagaiak po
+                INNER JOIN Osagaiak o ON po.osagaiak_id = o.id
+                WHERE po.platerak_id = :platerakId";
+
+			var result = session.CreateSQLQuery(query)
+				.SetParameter("platerakId", id)
+				.UniqueResult();
+
+			if (result == null || result == DBNull.Value)
+				return Ok(0);
+
+			return Ok(Convert.ToDouble(result));
+		}
+
+		// GET: api/platerak/{id}/komandak
+		[HttpGet("{id}/komandak")]
+		public ActionResult<IEnumerable<KomandaInfoDto>> GetKomandakAsociadas(int id)
+		{
+			using var session = _sessionFactory.OpenSession();
+
+			var query = @"
+                SELECT 
+                    k.id as Id,
+                    k.fakturak_id as FakturaId,
+                    k.kopurua as Kopurua,
+                    k.totala as Totala,
+                    k.egoera as Egoera,
+                    k.oharrak as Oharrak,
+                    f.totala as FakturaTotala,
+                    f.egoera as FakturaEgoera,
+                    e.izena as BezeroIzena,
+                    e.telefonoa as BezeroTelefonoa
+                FROM Komandak k
+                INNER JOIN Fakturak f ON k.fakturak_id = f.id
+                INNER JOIN Erreserbak e ON f.erreserbak_id = e.id
+                WHERE k.platerak_id = :platerakId
+                ORDER BY k.id DESC";
+
+			var komandak = session.CreateSQLQuery(query)
+				.SetParameter("platerakId", id)
+				.SetResultTransformer(NHibernate.Transform.Transformers.AliasToBean<KomandaInfoDto>())
+				.List<KomandaInfoDto>();
+
+			return Ok(komandak);
+		}
+
+		// GET: api/platerak/{id}/komandak/count
+		[HttpGet("{id}/komandak/count")]
+		public ActionResult<int> GetKomandakCount(int id)
+		{
+			using var session = _sessionFactory.OpenSession();
+
+			var query = "SELECT COUNT(*) FROM Komandak WHERE platerak_id = :id";
+			var count = session.CreateSQLQuery(query)
+				.SetParameter("id", id)
+				.UniqueResult<int>();
+
+			return Ok(count);
+		}
+
+		// DELETE: api/platerak/{id}/erlazioak-garbitu
+		[HttpDelete("{id}/erlazioak-garbitu")]
+		public ActionResult ErlazioakGarbitu(int id)
+		{
+			using var session = _sessionFactory.OpenSession();
+			using var transaction = session.BeginTransaction();
+
+			try
+			{
+				var platera = session.Query<Platerak>()
+					.FirstOrDefault(p => p.Id == id);
+
+				if (platera == null)
+					return NotFound(new { error = "Platerra ez da existitzen", id = id });
+
+				var deleteRelaciones = session.CreateSQLQuery(
+					"DELETE FROM Platerak_Osagaiak WHERE platerak_id = :id")
+					.SetParameter("id", id)
+					.ExecuteUpdate();
+
+				transaction.Commit();
+
+				return Ok(new
+				{
+					mezua = "Erlazioak ondo ezabatu dira",
+					platerraId = id,
+					platerraIzena = platera.Izena,
+					erlazioakEliminadas = deleteRelaciones
+				});
+			}
+			catch (Exception ex)
+			{
+				transaction.Rollback();
+				return StatusCode(500, new
+				{
+					error = "Errorea erlazioak ezabatzerakoan",
+					mezua = ex.Message,
+					platerraId = id,
+					xehetasunak = ex.InnerException?.Message
+				});
+			}
+		}
+
+		// DELETE: api/platerak/{id}/komandak/all
+		[HttpDelete("{id}/komandak/all")]
+		public ActionResult EliminarKomandak(int id)
+		{
+			using var session = _sessionFactory.OpenSession();
+			using var transaction = session.BeginTransaction();
+
+			try
+			{
+				var platera = session.Query<Platerak>()
+					.FirstOrDefault(p => p.Id == id);
+
+				if (platera == null)
+					return NotFound(new { error = "Platerra ez da existitzen", id = id });
+
+				var countQuery = "SELECT COUNT(*) FROM Komandak WHERE platerak_id = :id";
+				var komandakCount = session.CreateSQLQuery(countQuery)
+					.SetParameter("id", id)
+					.UniqueResult<int>();
+
+				if (komandakCount == 0)
+					return Ok(new { mezua = "Ez dago komandarik", platerraId = id, count = 0 });
+
+				var deleteQuery = "DELETE FROM Komandak WHERE platerak_id = :id";
+				var eliminadas = session.CreateSQLQuery(deleteQuery)
+					.SetParameter("id", id)
+					.ExecuteUpdate();
+
+				transaction.Commit();
+
+				return Ok(new
+				{
+					mezua = $"{eliminadas} komanda ezabatu dira",
+					platerraId = id,
+					platerraIzena = platera.Izena,
+					komandakEliminadas = eliminadas,
+					komandakOriginales = komandakCount
+				});
+			}
+			catch (Exception ex)
+			{
+				transaction.Rollback();
+				return StatusCode(500, new
+				{
+					error = "Errorea komandak ezabatzerakoan",
+					mezua = ex.Message,
+					platerraId = id,
+					xehetasunak = ex.InnerException?.Message
+				});
+			}
+		}
+
+		// GET: api/platerak/aktiboak
+		[HttpGet("aktiboak")]
+		public ActionResult<IEnumerable<PlaterakDto>> GetAktiboak()
+		{
+			using var session = _sessionFactory.OpenSession();
+
+			var platerak = session.Query<Platerak>()
+				.Where(p => p.Stock > 0)
+				.Fetch(p => p.Kategoriak)
+				.Select(p => new PlaterakDto
+				{
+					Id = p.Id,
+					Izena = p.Izena,
+					Prezioa = p.Prezioa,
+					Stock = p.Stock,
+					KategoriaId = p.Kategoriak != null ? p.Kategoriak.Id : 0,
+					KategoriaIzena = p.Kategoriak != null ? p.Kategoriak.Izena : "Kategoria gabe"
+				})
+				.ToList();
+
+			return Ok(platerak);
+		}
+
+		// GET: api/platerak/estadistikak
+		[HttpGet("estadistikak")]
+		public ActionResult<object> GetEstadistikak()
+		{
+			using var session = _sessionFactory.OpenSession();
+
+			var estadistikak = new
+			{
+				TotalPlaterak = session.Query<Platerak>().Count(),
+				PlaterakStockGutxi = session.Query<Platerak>().Count(p => p.Stock < 10),
+				PlaterakAktiboak = session.Query<Platerak>().Count(p => p.Stock > 0),
+				StockTotal = session.Query<Platerak>().Sum(p => p.Stock),
+				PrezioBatezBestekoa = session.Query<Platerak>().Average(p => p.Prezioa),
+				PrezioMaximoa = session.Query<Platerak>().Max(p => p.Prezioa),
+				PrezioMinimoa = session.Query<Platerak>().Min(p => p.Prezioa)
+			};
+
+			return Ok(estadistikak);
+		}
+
+		// GET: api/platerak/estadistikak/dashboard
+		[HttpGet("estadistikak/dashboard")]
+		public ActionResult<object> GetDashboardEstadistikak()
+		{
+			using var session = _sessionFactory.OpenSession();
+
+			var platerak = session.Query<Platerak>().ToList();
+
+			var estadistikak = new
+			{
+				// Oinarrizko estatistikak
+				PlaterakTotalak = platerak.Count,
+				PlaterakStockGutxi = platerak.Count(p => p.Stock < 10),
+				PlaterakAktiboak = platerak.Count(p => p.Stock > 0),
+				StockTotala = platerak.Sum(p => p.Stock),
+				PrezioBatezBestekoa = platerak.Average(p => p.Prezioa),
+
+				// Kategoriaka
+				Kategoriaka = platerak
+					.Where(p => p.Kategoriak != null)
+					.GroupBy(p => new { p.Kategoriak.Id, p.Kategoriak.Izena })
+					.Select(g => new
+					{
+						KategoriaId = g.Key.Id,
+						KategoriaIzena = g.Key.Izena,
+						Kopurua = g.Count(),
+						StockTotala = g.Sum(p => p.Stock),
+						PrezioBatezBestekoa = g.Average(p => p.Prezioa)
+					})
+					.ToList(),
+
+				// Top 5 stock handienarekin
+				TopStock = platerak
+					.OrderByDescending(p => p.Stock)
+					.Take(5)
+					.Select(p => new
+					{
+						p.Id,
+						p.Izena,
+						p.Stock,
+						p.Prezioa,
+						KategoriaIzena = p.Kategoriak?.Izena ?? "Kategoria gabe"
+					})
+					.ToList(),
+
+				// Stock gabe dauden platerak
+				StockGabe = platerak
+					.Where(p => p.Stock == 0)
+					.Select(p => new
+					{
+						p.Id,
+						p.Izena,
+						KategoriaIzena = p.Kategoriak?.Izena ?? "Kategoria gabe"
+					})
+					.ToList()
+			};
+
+			return Ok(estadistikak);
+		}
+	}
 }
