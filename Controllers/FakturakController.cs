@@ -17,11 +17,13 @@ public class FakturakController : ControllerBase
 
     // GET
     [HttpGet]
-    public ActionResult<IEnumerable<Faktura>> Get()
+    public ActionResult<IEnumerable<FakturaDto>> Get()
     {
         using (var session = _sessionFactory.OpenSession())
         {
-            var fakturak = session.Query<Faktura>().ToList();
+            var fakturak = session.Query<Faktura>()
+                .Select(ToDto)
+                .ToList();
             return Ok(fakturak);
         }
     }
@@ -104,7 +106,13 @@ public class FakturakController : ControllerBase
                 existing.Totala = faktura.Totala;
                 existing.Egoera = faktura.Egoera;
                 existing.FakturaPdf = faktura.FakturaPdf;
-                existing.ErreserbakId = faktura.ErreserbakId;
+                if (faktura.ErreserbakId > 0)
+                {
+                    var erreserba = session.Get<Erreserba>(faktura.ErreserbakId);
+                    if (erreserba == null)
+                        return BadRequest("Erreserba ez da existitzen");
+                    existing.Erreserba = erreserba;
+                }
 
                 session.Update(existing);
                 transaction.Commit();
@@ -186,12 +194,33 @@ public class FakturakController : ControllerBase
             if (faktura == null)
                 return NotFound();
 
-            var totala = session.Query<Komanda>()
-                .Where(k => k.Faktura.Id == id) 
-                .Sum(k => k.Totala);
+            var totalaRaw = session.CreateSQLQuery(@"
+SELECT COALESCE(SUM(k.totala), 0)
+FROM Komandak k
+WHERE k.fakturak_id = :id
+")
+                .SetParameter("id", id)
+                .UniqueResult();
+
+            var totala = Convert.ToDouble(totalaRaw);
 
             return Ok(totala);
         }
     }
+
+    private static FakturaDto ToDto(Faktura f)
+    {
+        return new FakturaDto
+        {
+            Id = f.Id,
+            Totala = f.Totala,
+            Egoera = f.Egoera,
+            FakturaPdf = f.FakturaPdf,
+            ErreserbakId = f.Erreserba?.Id ?? f.ErreserbakId
+        };
+    }
+    
+
+
 
 }

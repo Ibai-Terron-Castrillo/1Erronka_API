@@ -9,6 +9,8 @@ public class MahaiMap : ClassMap<Mahai>
         Id(x => x.Id).GeneratedBy.Identity();
 
         Map(x => x.MahaiZenbakia).Column("mahai_zenbakia").Not.Nullable();
+        Map(x => x.PertsonaMax).Column("pertsona_max").Not.Nullable();
+
 
         HasManyToMany(x => x.Erreserbak)
             .Table("Erreserbak_Mahaiak")
