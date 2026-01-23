@@ -375,11 +375,11 @@ WHERE k.fakturak_id = :fakturaId
             if (mahai == null)
                 return NotFound(new { error = "Mahai ez da existitzen" });
 
-            // Egiaztatu erreserbarik ez duela
-            var hasReservations = session.CreateSQLQuery(
+            var count = session.CreateSQLQuery(
                 "SELECT COUNT(*) FROM Erreserbak_Mahaiak WHERE mahaiak_id = :id")
                 .SetParameter("id", id)
-                .UniqueResult<int>() > 0;
+                .UniqueResult<long>();
+            var hasReservations = count > 0;
 
             if (hasReservations)
                 return BadRequest(new { error = "Ezin da mahai ezabatu, erreserbak ditu" });
