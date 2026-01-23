@@ -48,7 +48,10 @@ public class FakturakController : ControllerBase
         using (var session = _sessionFactory.OpenSession())
         {
             var faktura = session.Query<Faktura>()
-                .FirstOrDefault(f => f.ErreserbakId == erreserbaId);
+                .Where(f => f.Erreserba.Id == erreserbaId)
+                .OrderBy(f => f.Egoera)
+                .ThenByDescending(f => f.Id)
+                .FirstOrDefault();
 
             if (faktura == null)
                 return NotFound();
@@ -69,12 +72,13 @@ public class FakturakController : ControllerBase
                 if (erreserba == null)
                     return BadRequest("Erreserba ez da existitzen");
 
-                var existingFaktura = session.Query<Faktura>()
-                    .FirstOrDefault(f => f.ErreserbakId == faktura.ErreserbakId);
-
-                if (existingFaktura != null)
+                var hasOpenFaktura = session.Query<Faktura>()
+                    .Any(f => f.Erreserba.Id == faktura.ErreserbakId && !f.Egoera);
+                if (hasOpenFaktura)
                     return BadRequest("Erreserbak dagoeneko faktura bat du");
 
+                faktura.Erreserba = erreserba;
+                faktura.Egoera = false;
                 session.Save(faktura);
                 transaction.Commit();
                 return CreatedAtAction(nameof(Get), new { id = faktura.Id }, faktura);
@@ -171,6 +175,15 @@ public class FakturakController : ControllerBase
                 if (faktura == null)
                     return NotFound();
 
+                var totalaRaw = session.CreateSQLQuery(@"
+SELECT COALESCE(SUM(k.totala), 0)
+FROM Komandak k
+WHERE k.fakturak_id = :id
+")
+                    .SetParameter("id", id)
+                    .UniqueResult();
+
+                faktura.Totala = Convert.ToDouble(totalaRaw);
                 faktura.Egoera = true;
                 session.Update(faktura);
                 transaction.Commit();

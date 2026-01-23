@@ -155,7 +155,7 @@ public class ErreserbakController : ControllerBase
                     return NotFound();
 
                 var faktura = session.Query<Faktura>()
-                    .FirstOrDefault(f => f.ErreserbakId == id);
+                    .FirstOrDefault(f => f.Erreserba.Id == id);
 
                 if (faktura != null)
                     return BadRequest("Ezin da erreserba ezabatu, faktura bat dauka");
