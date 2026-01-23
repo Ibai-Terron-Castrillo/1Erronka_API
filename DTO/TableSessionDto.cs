@@ -1,3 +1,5 @@
+using System;
+
 public class TableSessionDto
 {
     public int MahaiId { get; set; }

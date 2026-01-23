@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 [ApiController]
+[Route("api/[controller]")]
 public class MahaiakController : ControllerBase
 {
     private readonly ISessionFactory _sessionFactory;
@@ -267,6 +268,168 @@ WHERE k.fakturak_id = :fakturaId
             Txanda = txanda,
             Data = date
         });
+    }
+
+    // POST: api/mahaiak
+    [HttpPost]
+    public ActionResult<MahaiDto> CreateMahai([FromBody] MahaiCreateDto createDto)
+    {
+        using var session = _sessionFactory.OpenSession();
+        using var transaction = session.BeginTransaction();
+
+        try
+        {
+            if (createDto.MahaiZenbakia <= 0)
+                return BadRequest(new { error = "Mahai zenbakia 0 baino handiagoa izan behar da" });
+
+            if (createDto.PertsonaMax <= 0 || createDto.PertsonaMax > 20)
+                return BadRequest(new { error = "Pertsona maximoak 1 eta 20 artean izan behar da" });
+
+            // Egiaztatu zenbakia errepikatuta ez dagoela
+            var exists = session.Query<Mahai>()
+                .Any(m => m.MahaiZenbakia == createDto.MahaiZenbakia);
+
+            if (exists)
+                return BadRequest(new { error = "Mahai zenbakia dagoeneko existitzen da" });
+
+            var mahai = new Mahai
+            {
+                MahaiZenbakia = createDto.MahaiZenbakia,
+                PertsonaMax = createDto.PertsonaMax
+            };
+
+            session.Save(mahai);
+            transaction.Commit();
+
+            var dto = new MahaiDto
+            {
+                Id = mahai.Id,
+                Zenbakia = mahai.MahaiZenbakia,
+                PertsonaMax = mahai.PertsonaMax,
+                Occupied = false
+            };
+
+            return CreatedAtAction(nameof(Get), new { id = mahai.Id }, dto);
+        }
+        catch (Exception ex)
+        {
+            transaction.Rollback();
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    // PUT: api/mahaiak/{id}
+    [HttpPut("{id}")]
+    public ActionResult UpdateMahai(int id, [FromBody] MahaiUpdateDto updateDto)
+    {
+        using var session = _sessionFactory.OpenSession();
+        using var transaction = session.BeginTransaction();
+
+        try
+        {
+            if (id != updateDto.Id)
+                return BadRequest(new { error = "ID-ak ez datoz bat" });
+
+            var mahai = session.Get<Mahai>(id);
+            if (mahai == null)
+                return NotFound(new { error = "Mahai ez da existitzen" });
+
+            if (updateDto.MahaiZenbakia <= 0)
+                return BadRequest(new { error = "Mahai zenbakia 0 baino handiagoa izan behar da" });
+
+            if (updateDto.PertsonaMax <= 0 || updateDto.PertsonaMax > 20)
+                return BadRequest(new { error = "Pertsona maximoak 1 eta 20 artean izan behar da" });
+
+            // Egiaztatu zenbakia errepikatuta ez dagoela (beste mahai batean)
+            var exists = session.Query<Mahai>()
+                .Any(m => m.MahaiZenbakia == updateDto.MahaiZenbakia && m.Id != id);
+
+            if (exists)
+                return BadRequest(new { error = "Mahai zenbakia dagoeneko existitzen da" });
+
+            mahai.MahaiZenbakia = updateDto.MahaiZenbakia;
+            mahai.PertsonaMax = updateDto.PertsonaMax;
+
+            session.Update(mahai);
+            transaction.Commit();
+
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            transaction.Rollback();
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    // DELETE: api/mahaiak/{id}
+    [HttpDelete("{id}")]
+    public ActionResult DeleteMahai(int id)
+    {
+        using var session = _sessionFactory.OpenSession();
+        using var transaction = session.BeginTransaction();
+
+        try
+        {
+            var mahai = session.Get<Mahai>(id);
+            if (mahai == null)
+                return NotFound(new { error = "Mahai ez da existitzen" });
+
+            // Egiaztatu erreserbarik ez duela
+            var hasReservations = session.CreateSQLQuery(
+                "SELECT COUNT(*) FROM Erreserbak_Mahaiak WHERE mahaiak_id = :id")
+                .SetParameter("id", id)
+                .UniqueResult<int>() > 0;
+
+            if (hasReservations)
+                return BadRequest(new { error = "Ezin da mahai ezabatu, erreserbak ditu" });
+
+            session.Delete(mahai);
+            transaction.Commit();
+
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            transaction.Rollback();
+            return StatusCode(500, new { error = ex.Message });
+        }
+    }
+
+    // GET: api/mahaiak/{id}
+    [HttpGet("{id}")]
+    public ActionResult<MahaiDto> GetMahai(int id)
+    {
+        using var session = _sessionFactory.OpenSession();
+
+        var mahai = session.Get<Mahai>(id);
+        if (mahai == null)
+            return NotFound();
+
+        // Egiaztatu okupatuta dagoen
+        var now = DateTime.Now;
+        var txanda = now.Hour >= 12 && now.Hour < 19 ? "Bazkaria" : "Afaria";
+        var date = now.Date;
+
+        var occupied = session.CreateSQLQuery(@"
+SELECT COUNT(*) FROM Erreserbak_Mahaiak em
+JOIN Erreserbak e ON e.id = em.erreserbak_id
+WHERE em.mahaiak_id = :mahaiId AND DATE(e.data) = :date AND e.txanda = :txanda
+")
+            .SetParameter("mahaiId", id)
+            .SetParameter("date", date)
+            .SetParameter("txanda", txanda)
+            .UniqueResult<int>() > 0;
+
+        var dto = new MahaiDto
+        {
+            Id = mahai.Id,
+            Zenbakia = mahai.MahaiZenbakia,
+            PertsonaMax = mahai.PertsonaMax,
+            Occupied = occupied
+        };
+
+        return Ok(dto);
     }
 }
 
