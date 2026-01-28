@@ -785,5 +785,80 @@ namespace API.Controllers
 
 			return Ok(estadistikak);
 		}
-	}
+
+        [HttpPost("jaitsi-stock")]
+        public IActionResult JaitsiStock([FromBody] StockAldaketaDto dto)
+        {
+            using var session = _sessionFactory.OpenSession();
+            using var tx = session.BeginTransaction();
+
+            var platera = session.Get<Platerak>(dto.PlaterId);
+            if (platera == null)
+                return NotFound();
+
+            if (platera.Stock < dto.Kopurua)
+                return BadRequest(false);
+
+
+            var osagaiak = session.Query<PlaterakOsagaia>()
+                .Where(po => po.Platerak.Id == dto.PlaterId)
+                .Fetch(po => po.Osagaia)
+                .ToList();
+
+
+            foreach (var po in osagaiak)
+            {
+                int beharrezkoa = po.Kopurua * dto.Kopurua;
+
+                if (po.Osagaia.Stock < beharrezkoa)
+                    return BadRequest(false);
+            }
+
+
+            platera.Stock -= dto.Kopurua;
+            session.Update(platera);
+
+
+            foreach (var po in osagaiak)
+            {
+                po.Osagaia.Stock -= po.Kopurua * dto.Kopurua;
+                session.Update(po.Osagaia);
+            }
+
+            tx.Commit();
+            return Ok(true);
+        }
+
+
+        [HttpPost("itzuli-stock")]
+        public IActionResult ItzuliStock([FromBody] StockAldaketaDto dto)
+        {
+            using var session = _sessionFactory.OpenSession();
+            using var tx = session.BeginTransaction();
+
+            var platera = session.Get<Platerak>(dto.PlaterId);
+            if (platera == null)
+                return NotFound();
+
+
+            var osagaiak = session.Query<PlaterakOsagaia>()
+                .Where(po => po.Platerak.Id == dto.PlaterId)
+                .Fetch(po => po.Osagaia)
+                .ToList();
+
+
+            platera.Stock += dto.Kopurua;
+            session.Update(platera);
+
+
+            foreach (var po in osagaiak)
+            {
+                po.Osagaia.Stock += po.Kopurua * dto.Kopurua;
+                session.Update(po.Osagaia);
+            }
+
+            tx.Commit();
+            return Ok(true);
+        }
+    }
 }

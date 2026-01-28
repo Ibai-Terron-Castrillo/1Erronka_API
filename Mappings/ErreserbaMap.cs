@@ -9,7 +9,8 @@ public class ErreserbaMap : ClassMap<Erreserba>
         Id(x => x.Id).GeneratedBy.Identity();
 
         Map(x => x.Izena).Column("izena").Length(60);
-        Map(x => x.Telefonoa).Column("telefonoa");
+        Map(x => x.Telefonoa).Column("telefonoa").Length(9);
+
         Map(x => x.Txanda).Column("txanda").Length(20);
         Map(x => x.PertsonaKopurua).Column("pertsona_kopurua");
         Map(x => x.Data).Column("data");
@@ -22,6 +23,6 @@ public class ErreserbaMap : ClassMap<Erreserba>
             .Table("Erreserbak_Mahaiak")
             .ParentKeyColumn("erreserbak_id")
             .ChildKeyColumn("mahaiak_id")
-            .Cascade.SaveUpdate();
+            .Cascade.None();
     }
 }
