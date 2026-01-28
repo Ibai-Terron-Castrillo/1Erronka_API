@@ -17,36 +17,84 @@ public class ErreserbakController : ControllerBase
 
     // GET
     [HttpGet]
-    public ActionResult<IEnumerable<Erreserba>> Get()
+    public ActionResult<IEnumerable<ErreserbaDto>> Get()
     {
         using (var session = _sessionFactory.OpenSession())
         {
-            var erreserbak = session.Query<Erreserba>().ToList();
+            var erreserbak = session.Query<Erreserba>()
+                .Select(e => new ErreserbaDto
+                {
+                    Id = e.Id,
+                    Izena = e.Izena,
+                    Telefonoa = e.Telefonoa,
+                    Txanda = e.Txanda,
+                    PertsonaKopurua = e.PertsonaKopurua,
+                    Data = e.Data,
+                    Mahaiak = e.Mahaiak.Select(m => new MahaiUpdateDto
+                    {
+                        Id = m.Id,
+                        MahaiZenbakia = m.MahaiZenbakia,
+                        PertsonaMax = m.PertsonaMax
+                    }).ToList()
+                })
+                .ToList();
             return Ok(erreserbak);
         }
     }
 
     // GET BY ID
     [HttpGet("{id}")]
-    public ActionResult<Erreserba> Get(int id)
+    public ActionResult<ErreserbaDto> Get(int id)
     {
         using (var session = _sessionFactory.OpenSession())
         {
             var erreserba = session.Get<Erreserba>(id);
             if (erreserba == null)
                 return NotFound();
-            return Ok(erreserba);
+
+            var result = new ErreserbaDto
+            {
+                Id = erreserba.Id,
+                Izena = erreserba.Izena,
+                Telefonoa = erreserba.Telefonoa,
+                Txanda = erreserba.Txanda,
+                PertsonaKopurua = erreserba.PertsonaKopurua,
+                Data = erreserba.Data,
+                Mahaiak = erreserba.Mahaiak.Select(m => new MahaiUpdateDto
+                {
+                    Id = m.Id,
+                    MahaiZenbakia = m.MahaiZenbakia,
+                    PertsonaMax = m.PertsonaMax
+                }).ToList()
+            };
+
+            return Ok(result);
         }
     }
 
     // GET BY DATA
     [HttpGet("data/{data}")]
-    public ActionResult<IEnumerable<Erreserba>> GetByData(DateTime data)
+    public ActionResult<IEnumerable<ErreserbaDto>> GetByData(DateTime data)
     {
         using (var session = _sessionFactory.OpenSession())
         {
             var erreserbak = session.Query<Erreserba>()
                 .Where(e => e.Data.Date == data.Date)
+                .Select(e => new ErreserbaDto
+                {
+                    Id = e.Id,
+                    Izena = e.Izena,
+                    Telefonoa = e.Telefonoa,
+                    Txanda = e.Txanda,
+                    PertsonaKopurua = e.PertsonaKopurua,
+                    Data = e.Data,
+                    Mahaiak = e.Mahaiak.Select(m => new MahaiUpdateDto
+                    {
+                        Id = m.Id,
+                        MahaiZenbakia = m.MahaiZenbakia,
+                        PertsonaMax = m.PertsonaMax
+                    }).ToList()
+                })
                 .ToList();
             return Ok(erreserbak);
         }
@@ -54,12 +102,27 @@ public class ErreserbakController : ControllerBase
 
     // GET Gaurkoak
     [HttpGet("gaur")]
-    public ActionResult<IEnumerable<Erreserba>> GetGaurkoak()
+    public ActionResult<IEnumerable<ErreserbaDto>> GetGaurkoak()
     {
         using (var session = _sessionFactory.OpenSession())
         {
             var erreserbak = session.Query<Erreserba>()
                 .Where(e => e.Data.Date == DateTime.Today)
+                .Select(e => new ErreserbaDto
+                {
+                    Id = e.Id,
+                    Izena = e.Izena,
+                    Telefonoa = e.Telefonoa,
+                    Txanda = e.Txanda,
+                    PertsonaKopurua = e.PertsonaKopurua,
+                    Data = e.Data,
+                    Mahaiak = e.Mahaiak.Select(m => new MahaiUpdateDto
+                    {
+                        Id = m.Id,
+                        MahaiZenbakia = m.MahaiZenbakia,
+                        PertsonaMax = m.PertsonaMax
+                    }).ToList()
+                })
                 .ToList();
             return Ok(erreserbak);
         }
@@ -86,7 +149,24 @@ public class ErreserbakController : ControllerBase
 
                 session.Save(erreserba);
                 transaction.Commit();
-                return CreatedAtAction(nameof(Get), new { id = erreserba.Id }, erreserba);
+
+                var result = new ErreserbaDto
+                {
+                    Id = erreserba.Id,
+                    Izena = erreserba.Izena,
+                    Telefonoa = erreserba.Telefonoa,
+                    Txanda = erreserba.Txanda,
+                    PertsonaKopurua = erreserba.PertsonaKopurua,
+                    Data = erreserba.Data,
+                    Mahaiak = erreserba.Mahaiak.Select(m => new MahaiUpdateDto
+                    {
+                        Id = m.Id,
+                        MahaiZenbakia = m.MahaiZenbakia,
+                        PertsonaMax = m.PertsonaMax
+                    }).ToList()
+                };
+
+                return CreatedAtAction(nameof(Get), new { id = erreserba.Id }, result);
             }
             catch (Exception ex)
             {
