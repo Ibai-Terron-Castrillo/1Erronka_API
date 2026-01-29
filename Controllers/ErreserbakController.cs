@@ -19,82 +19,45 @@ public class ErreserbakController : ControllerBase
     [HttpGet]
     public ActionResult<IEnumerable<ErreserbaDto>> Get()
     {
-        using (var session = _sessionFactory.OpenSession())
-        {
-            var erreserbak = session.Query<Erreserba>()
-                .Select(e => new ErreserbaDto
-                {
-                    Id = e.Id,
-                    Izena = e.Izena,
-                    Telefonoa = e.Telefonoa,
-                    Txanda = e.Txanda,
-                    PertsonaKopurua = e.PertsonaKopurua,
-                    Data = e.Data,
-                    Mahaiak = e.Mahaiak.Select(m => new MahaiUpdateDto
-                    {
-                        Id = m.Id,
-                        MahaiZenbakia = m.MahaiZenbakia,
-                        PertsonaMax = m.PertsonaMax
-                    }).ToList()
-                })
-                .ToList();
-            return Ok(erreserbak);
-        }
+        using var session = _sessionFactory.OpenSession();
+
+        var erreserbak = session.Query<Erreserba>()
+            .Select(e => new ErreserbaDto
+            {
+                Id = e.Id,
+                Izena = e.Izena,
+                Telefonoa = e.Telefonoa,
+                PertsonaKopurua = e.PertsonaKopurua,
+                Data = e.Data,
+                Txanda = e.Txanda
+            })
+            .ToList();
+
+        return Ok(erreserbak);
     }
+
 
     // GET BY ID
     [HttpGet("{id}")]
-    public ActionResult<ErreserbaDto> Get(int id)
+    public ActionResult<Erreserba> Get(int id)
     {
         using (var session = _sessionFactory.OpenSession())
         {
             var erreserba = session.Get<Erreserba>(id);
             if (erreserba == null)
                 return NotFound();
-
-            var result = new ErreserbaDto
-            {
-                Id = erreserba.Id,
-                Izena = erreserba.Izena,
-                Telefonoa = erreserba.Telefonoa,
-                Txanda = erreserba.Txanda,
-                PertsonaKopurua = erreserba.PertsonaKopurua,
-                Data = erreserba.Data,
-                Mahaiak = erreserba.Mahaiak.Select(m => new MahaiUpdateDto
-                {
-                    Id = m.Id,
-                    MahaiZenbakia = m.MahaiZenbakia,
-                    PertsonaMax = m.PertsonaMax
-                }).ToList()
-            };
-
-            return Ok(result);
+            return Ok(erreserba);
         }
     }
 
     // GET BY DATA
     [HttpGet("data/{data}")]
-    public ActionResult<IEnumerable<ErreserbaDto>> GetByData(DateTime data)
+    public ActionResult<IEnumerable<Erreserba>> GetByData(DateTime data)
     {
         using (var session = _sessionFactory.OpenSession())
         {
             var erreserbak = session.Query<Erreserba>()
                 .Where(e => e.Data.Date == data.Date)
-                .Select(e => new ErreserbaDto
-                {
-                    Id = e.Id,
-                    Izena = e.Izena,
-                    Telefonoa = e.Telefonoa,
-                    Txanda = e.Txanda,
-                    PertsonaKopurua = e.PertsonaKopurua,
-                    Data = e.Data,
-                    Mahaiak = e.Mahaiak.Select(m => new MahaiUpdateDto
-                    {
-                        Id = m.Id,
-                        MahaiZenbakia = m.MahaiZenbakia,
-                        PertsonaMax = m.PertsonaMax
-                    }).ToList()
-                })
                 .ToList();
             return Ok(erreserbak);
         }
@@ -102,79 +65,42 @@ public class ErreserbakController : ControllerBase
 
     // GET Gaurkoak
     [HttpGet("gaur")]
-    public ActionResult<IEnumerable<ErreserbaDto>> GetGaurkoak()
+    public ActionResult<IEnumerable<Erreserba>> GetGaurkoak()
     {
         using (var session = _sessionFactory.OpenSession())
         {
             var erreserbak = session.Query<Erreserba>()
                 .Where(e => e.Data.Date == DateTime.Today)
-                .Select(e => new ErreserbaDto
-                {
-                    Id = e.Id,
-                    Izena = e.Izena,
-                    Telefonoa = e.Telefonoa,
-                    Txanda = e.Txanda,
-                    PertsonaKopurua = e.PertsonaKopurua,
-                    Data = e.Data,
-                    Mahaiak = e.Mahaiak.Select(m => new MahaiUpdateDto
-                    {
-                        Id = m.Id,
-                        MahaiZenbakia = m.MahaiZenbakia,
-                        PertsonaMax = m.PertsonaMax
-                    }).ToList()
-                })
                 .ToList();
             return Ok(erreserbak);
         }
     }
 
-    // POST
     [HttpPost]
     public ActionResult<Erreserba> Post([FromBody] Erreserba erreserba)
     {
-        using (var session = _sessionFactory.OpenSession())
-        using (var transaction = session.BeginTransaction())
+        using var session = _sessionFactory.OpenSession();
+        using var transaction = session.BeginTransaction();
+
+        try
         {
-            try
-            {
-                if (erreserba.Mahaiak != null && erreserba.Mahaiak.Any())
-                {
-                    foreach (var mahai in erreserba.Mahaiak)
-                    {
-                        var mahaiDb = session.Get<Mahai>(mahai.Id);
-                        if (mahaiDb == null)
-                            return BadRequest($"Mahai {mahai.Id} ez da existitzen");
-                    }
-                }
+            
+            if (erreserba.Mahaiak == null)
+                erreserba.Mahaiak = new List<Mahai>();
 
-                session.Save(erreserba);
-                transaction.Commit();
+            session.Save(erreserba);
+            transaction.Commit();
 
-                var result = new ErreserbaDto
-                {
-                    Id = erreserba.Id,
-                    Izena = erreserba.Izena,
-                    Telefonoa = erreserba.Telefonoa,
-                    Txanda = erreserba.Txanda,
-                    PertsonaKopurua = erreserba.PertsonaKopurua,
-                    Data = erreserba.Data,
-                    Mahaiak = erreserba.Mahaiak.Select(m => new MahaiUpdateDto
-                    {
-                        Id = m.Id,
-                        MahaiZenbakia = m.MahaiZenbakia,
-                        PertsonaMax = m.PertsonaMax
-                    }).ToList()
-                };
-
-                return CreatedAtAction(nameof(Get), new { id = erreserba.Id }, result);
-            }
-            catch (Exception ex)
-            {
-                transaction.Rollback();
-                return StatusCode(500, $"Errorea: {ex.Message}");
-            }
+            return Ok(erreserba);
+        }
+        catch (Exception ex)
+        {
+            transaction.Rollback();
+            return StatusCode(500, ex.Message);
         }
     }
+
+
 
     // PUT
     [HttpPut("{id}")]
@@ -225,32 +151,36 @@ public class ErreserbakController : ControllerBase
     [HttpDelete("{id}")]
     public ActionResult Delete(int id)
     {
-        using (var session = _sessionFactory.OpenSession())
-        using (var transaction = session.BeginTransaction())
+        using var session = _sessionFactory.OpenSession();
+        using var tx = session.BeginTransaction();
+
+        try
         {
-            try
-            {
-                var erreserba = session.Get<Erreserba>(id);
-                if (erreserba == null)
-                    return NotFound();
+            var erreserba = session.Get<Erreserba>(id);
+            if (erreserba == null)
+                return NotFound();
 
-                var faktura = session.Query<Faktura>()
-                    .FirstOrDefault(f => f.Erreserba.Id == id);
+            
+            var relaciones = session.Query<ErreserbaMahai>()
+                .Where(em => em.Erreserba.Id == id)
+                .ToList();
 
-                if (faktura != null)
-                    return BadRequest("Ezin da erreserba ezabatu, faktura bat dauka");
+            foreach (var r in relaciones)
+                session.Delete(r);
 
-                session.Delete(erreserba);
-                transaction.Commit();
-                return NoContent();
-            }
-            catch (Exception ex)
-            {
-                transaction.Rollback();
-                return StatusCode(500, $"Errorea: {ex.Message}");
-            }
+            
+            session.Delete(erreserba);
+
+            tx.Commit();
+            return Ok(); 
+        }
+        catch (Exception ex)
+        {
+            tx.Rollback();
+            return StatusCode(500, ex.Message);
         }
     }
+
 
     // Mahaia Gehitu
     [HttpPost("{id}/mahaiak")]

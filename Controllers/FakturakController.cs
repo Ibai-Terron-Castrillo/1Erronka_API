@@ -17,84 +17,92 @@ public class FakturakController : ControllerBase
 
     // GET
     [HttpGet]
-    public ActionResult<IEnumerable<FakturaDto>> Get()
+    public ActionResult<IEnumerable<Faktura>> Get()
     {
         using (var session = _sessionFactory.OpenSession())
         {
-            var fakturak = session.Query<Faktura>()
-                .Select(ToDto)
-                .ToList();
+            var fakturak = session.Query<Faktura>().ToList();
             return Ok(fakturak);
         }
     }
 
     // GET BY ID
     [HttpGet("{id}")]
-    public ActionResult<FakturaDto> Get(int id)
+    public ActionResult<Faktura> Get(int id)
     {
         using (var session = _sessionFactory.OpenSession())
         {
-            var faktura =
-                session.Query<Faktura>()
-                    .Where(f => f.Id == id)
-                    .Select(ToDto)
-                    .FirstOrDefault();
-            if (faktura == null) return NotFound();
-            return Ok(faktura);
-        }
-    }
-
-    // GET BY ERRESERBA ID
-    [HttpGet("erreserba/{erreserbaId}")]
-    public ActionResult<FakturaDto> GetByErreserba(int erreserbaId)
-    {
-        using (var session = _sessionFactory.OpenSession())
-        {
-            var faktura =
-                session.Query<Faktura>()
-                    .Where(f => f.Erreserba.Id == erreserbaId)
-                    .OrderBy(f => f.Egoera)
-                    .ThenByDescending(f => f.Id)
-                    .Select(ToDto)
-                    .FirstOrDefault();
-
+            var faktura = session.Get<Faktura>(id);
             if (faktura == null)
                 return NotFound();
             return Ok(faktura);
         }
     }
 
+    // GET BY ERRESERBA ID
+    [HttpGet("erreserba/{erreserbaId}")]
+public ActionResult<Faktura> GetByErreserba(int erreserbaId)
+{
+    using var session = _sessionFactory.OpenSession();
+
+    var faktura = session.Query<Faktura>()
+        .FirstOrDefault(f => f.Erreserba.Id == erreserbaId && !f.Egoera);
+
+    if (faktura == null)
+        return NotFound();
+
+    return Ok(faktura);
+}
+
+
+
     // POST
-    [HttpPost]
-    public ActionResult<FakturaDto> Post([FromBody] Faktura faktura)
+
+    [HttpPost("sortu-erreserbatik")]
+    public ActionResult<FakturaDto> SortuFakturaErreserbatik([FromBody] SortuFakturaDto dto)
     {
-        using (var session = _sessionFactory.OpenSession())
-        using (var transaction = session.BeginTransaction())
+        using var session = _sessionFactory.OpenSession();
+        using var tx = session.BeginTransaction();
+
+        try
         {
-            try
+            var erreserba = session.Get<Erreserba>(dto.ErreserbaId);
+            if (erreserba == null)
+                return BadRequest("Erreserba ez da existitzen");
+
+            var existing = session.Query<Faktura>()
+                .FirstOrDefault(f => f.Erreserba.Id == dto.ErreserbaId && !f.Egoera);
+
+            var faktura = existing ?? new Faktura
             {
-                var erreserba = session.Get<Erreserba>(faktura.ErreserbakId);
-                if (erreserba == null)
-                    return BadRequest("Erreserba ez da existitzen");
+                Erreserba = erreserba,
+                Totala = 0,
+                Egoera = false
+            };
 
-                var hasOpenFaktura = session.Query<Faktura>()
-                    .Any(f => f.Erreserba.Id == faktura.ErreserbakId && !f.Egoera);
-                if (hasOpenFaktura)
-                    return BadRequest("Erreserbak dagoeneko faktura bat du");
-
-                faktura.Erreserba = erreserba;
-                faktura.Egoera = false;
+            if (existing == null)
                 session.Save(faktura);
-                transaction.Commit();
-                return CreatedAtAction(nameof(Get), new { id = faktura.Id }, ToDto(faktura));
-            }
-            catch (Exception ex)
+
+            tx.Commit();
+
+            return Ok(new FakturaDto
             {
-                transaction.Rollback();
-                return StatusCode(500, $"Errorea: {ex.Message}");
-            }
+                Id = faktura.Id,
+                Totala = faktura.Totala,
+                Egoera = faktura.Egoera,
+                ErreserbaId = erreserba.Id
+            });
+        }
+        catch (Exception ex)
+        {
+            tx.Rollback();
+            return StatusCode(500, ex.Message);
         }
     }
+
+
+
+
 
     // PUT
     [HttpPut("{id}")]
@@ -115,13 +123,7 @@ public class FakturakController : ControllerBase
                 existing.Totala = faktura.Totala;
                 existing.Egoera = faktura.Egoera;
                 existing.FakturaPdf = faktura.FakturaPdf;
-                if (faktura.ErreserbakId > 0)
-                {
-                    var erreserba = session.Get<Erreserba>(faktura.ErreserbakId);
-                    if (erreserba == null)
-                        return BadRequest("Erreserba ez da existitzen");
-                    existing.Erreserba = erreserba;
-                }
+                existing.Erreserba.Id = faktura.Erreserba.Id;
 
                 session.Update(existing);
                 transaction.Commit();
@@ -180,15 +182,6 @@ public class FakturakController : ControllerBase
                 if (faktura == null)
                     return NotFound();
 
-                var totalaRaw = session.CreateSQLQuery(@"
-SELECT COALESCE(SUM(k.totala), 0)
-FROM Komandak k
-WHERE k.fakturak_id = :id
-")
-                    .SetParameter("id", id)
-                    .UniqueResult();
-
-                faktura.Totala = Convert.ToDouble(totalaRaw);
                 faktura.Egoera = true;
                 session.Update(faktura);
                 transaction.Commit();
@@ -212,33 +205,19 @@ WHERE k.fakturak_id = :id
             if (faktura == null)
                 return NotFound();
 
-            var totalaRaw = session.CreateSQLQuery(@"
-SELECT COALESCE(SUM(k.totala), 0)
-FROM Komandak k
-WHERE k.fakturak_id = :id
-")
-                .SetParameter("id", id)
-                .UniqueResult();
-
-            var totala = Convert.ToDouble(totalaRaw);
+            var totala = session.Query<Komanda>()
+                .Where(k => k.Faktura.Id == id) 
+                .Sum(k => k.Totala);
 
             return Ok(totala);
         }
     }
 
-    private static FakturaDto ToDto(Faktura f)
+
+    public class SortuFakturaDto
     {
-        return new FakturaDto
-        {
-            Id = f.Id,
-            Totala = f.Totala,
-            Egoera = f.Egoera,
-            FakturaPdf = f.FakturaPdf,
-            ErreserbakId = f.Erreserba?.Id ?? f.ErreserbakId
-        };
+        public int ErreserbaId { get; set; }
     }
     
-
-
 
 }

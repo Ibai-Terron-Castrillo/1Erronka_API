@@ -34,23 +34,14 @@ public class KomandakController : ControllerBase
 
     // GET BY ID
     [HttpGet("{id}")]
-    public ActionResult<KomandaItemDto> Get(int id)
+    public ActionResult<Komanda> Get(int id)
     {
         using (var session = _sessionFactory.OpenSession())
         {
             var komanda = session.Get<Komanda>(id);
             if (komanda == null)
                 return NotFound();
-            var dto = new KomandaItemDto
-            {
-                Id = komanda.Id,
-                PlaterakId = komanda.Platerak.Id,
-                FakturakId = komanda.Faktura.Id,
-                Kopurua = komanda.Kopurua,
-                Oharrak = komanda.Oharrak,
-                Egoera = komanda.Egoera
-            };
-            return Ok(dto);
+            return Ok(komanda);
         }
     }
 
@@ -65,27 +56,6 @@ public class KomandakController : ControllerBase
             .ToList();
 
         return Ok(komandak);
-    }
-
-    [HttpGet("faktura/{fakturaId}/items")]
-    public ActionResult<IEnumerable<KomandaItemDto>> GetItemsByFaktura(int fakturaId)
-    {
-        using var session = _sessionFactory.OpenSession();
-
-        var items = session.Query<Komanda>()
-            .Where(k => k.Faktura.Id == fakturaId)
-            .Select(k => new KomandaItemDto
-            {
-                Id = k.Id,
-                PlaterakId = k.Platerak.Id,
-                FakturakId = k.Faktura.Id,
-                Kopurua = k.Kopurua,
-                Oharrak = k.Oharrak,
-                Egoera = k.Egoera
-            })
-            .ToList();
-
-        return Ok(items);
     }
 
 
@@ -126,79 +96,14 @@ public class KomandakController : ControllerBase
         platera.Stock -= dto.Kopurua;
         session.Update(platera);
 
-        EguneratuFakturaTotala(session, faktura.Id);
+       
+
+        faktura.Totala += komanda.Totala;
+        session.Update(faktura);
+
+
         tx.Commit();
         return Ok();
-    }
-
-    [HttpPut("{id}/quantity")]
-    public ActionResult UpdateQuantity(int id, [FromBody] KomandaQuantityDto dto)
-    {
-        using var session = _sessionFactory.OpenSession();
-        using var tx = session.BeginTransaction();
-
-        try
-        {
-            var komanda = session.Get<Komanda>(id);
-            if (komanda == null) return NotFound();
-
-            if (dto == null) return BadRequest("Body hutsik");
-            if (dto.Kopurua <= 0) return BadRequest("Kopurua okerra");
-
-            var plateraId = komanda.Platerak?.Id ?? 0;
-            if (plateraId <= 0) return StatusCode(500, "Platera ez da aurkitu komandan");
-
-            var platera = session.Get<Platerak>(plateraId);
-            if (platera == null) return StatusCode(500, "Platera ez da existitzen");
-
-            var delta = dto.Kopurua - komanda.Kopurua;
-            if (delta > 0)
-            {
-                if (platera.Stock < delta) return BadRequest("Ez dago stock nahikorik");
-                platera.Stock -= delta;
-            }
-            else if (delta < 0)
-            {
-                platera.Stock += -delta;
-            }
-
-            komanda.Kopurua = dto.Kopurua;
-            komanda.Totala = dto.Kopurua * platera.Prezioa;
-
-            session.Update(platera);
-            session.Update(komanda);
-            EguneratuFakturaTotala(session, komanda.Faktura.Id);
-            tx.Commit();
-            return NoContent();
-        }
-        catch (Exception ex)
-        {
-            tx.Rollback();
-            return StatusCode(500, $"Errorea: {ex.Message}");
-        }
-    }
-
-    [HttpPut("{id}/oharrak")]
-    public ActionResult UpdateOharrak(int id, [FromBody] KomandaOharrakDto dto)
-    {
-        using var session = _sessionFactory.OpenSession();
-        using var tx = session.BeginTransaction();
-
-        try
-        {
-            var komanda = session.Get<Komanda>(id);
-            if (komanda == null) return NotFound();
-
-            komanda.Oharrak = dto?.Oharrak;
-            session.Update(komanda);
-            tx.Commit();
-            return NoContent();
-        }
-        catch (Exception ex)
-        {
-            tx.Rollback();
-            return StatusCode(500, $"Errorea: {ex.Message}");
-        }
     }
 
 
@@ -206,7 +111,7 @@ public class KomandakController : ControllerBase
 
     // PUT
     [HttpPut("{id}")]
-    public IActionResult Put(int id, [FromBody] Komanda komanda)
+    public ActionResult Put(int id, [FromBody] Komanda komanda)
     {
         if (id != komanda.Id)
             return BadRequest("ID-ak ez datoz bat");
@@ -220,23 +125,16 @@ public class KomandakController : ControllerBase
                 if (existing == null)
                     return NotFound();
 
-                var oldFakturaId = existing.Faktura?.Id ?? 0;
-
                 if (existing.Kopurua != komanda.Kopurua || existing.Platerak != komanda.Platerak)
                 {
-                    var plateraZaharraId = existing.Platerak?.Id ?? 0;
-                    var plateraBerriaId = komanda.Platerak?.Id ?? 0;
-                    var plateraZaharra = plateraZaharraId > 0 ? session.Get<Platerak>(plateraZaharraId) : null;
-                    var plateraBerria = plateraBerriaId > 0 ? session.Get<Platerak>(plateraBerriaId) : null;
+                    var plateraZaharra = session.Get<Platerak>(existing.Platerak);
+                    var plateraBerria = session.Get<Platerak>(komanda.Platerak);
 
                     if (plateraBerria == null)
                         return BadRequest("Platera berria ez da existitzen");
 
-                    if (plateraZaharra != null)
-                    {
-                        plateraZaharra.Stock += existing.Kopurua;
-                        session.Update(plateraZaharra);
-                    }
+                    plateraZaharra.Stock += existing.Kopurua;
+                    session.Update(plateraZaharra);
 
                     if (plateraBerria.Stock < komanda.Kopurua)
                         return BadRequest($"Stock nahikorik ez platera berrian: {plateraBerria.Stock}");
@@ -245,32 +143,14 @@ public class KomandakController : ControllerBase
                     session.Update(plateraBerria);
                 }
 
-                var newPlateraId = komanda.Platerak?.Id ?? 0;
-                if (newPlateraId > 0)
-                {
-                    var platera = session.Get<Platerak>(newPlateraId);
-                    if (platera == null)
-                        return BadRequest("Platera berria ez da existitzen");
-                    existing.Platerak = platera;
-                }
-
-                var newFakturaIdFromBody = komanda.Faktura?.Id ?? 0;
-                if (newFakturaIdFromBody > 0)
-                {
-                    var faktura = session.Get<Faktura>(newFakturaIdFromBody);
-                    if (faktura == null)
-                        return BadRequest("Faktura ez da existitzen");
-                    existing.Faktura = faktura;
-                }
+                existing.Platerak = komanda.Platerak;
+                existing.Faktura = komanda.Faktura;
                 existing.Kopurua = komanda.Kopurua;
-                existing.Totala = komanda.Kopurua * (existing.Platerak?.Prezioa ?? 0);
+                existing.Totala = komanda.Totala;
                 existing.Oharrak = komanda.Oharrak;
                 existing.Egoera = komanda.Egoera;
 
                 session.Update(existing);
-                var newFakturaId = existing.Faktura?.Id ?? 0;
-                if (oldFakturaId > 0) EguneratuFakturaTotala(session, oldFakturaId);
-                if (newFakturaId > 0 && newFakturaId != oldFakturaId) EguneratuFakturaTotala(session, newFakturaId);
                 transaction.Commit();
                 return NoContent();
             }
@@ -295,9 +175,7 @@ public class KomandakController : ControllerBase
                 if (komanda == null)
                     return NotFound();
 
-                var fakturaId = komanda.Faktura?.Id ?? 0;
-                var plateraId = komanda.Platerak?.Id ?? 0;
-                var platera = plateraId > 0 ? session.Get<Platerak>(plateraId) : null;
+                var platera = session.Get<Platerak>(komanda.Platerak);
                 if (platera != null)
                 {
                     platera.Stock += komanda.Kopurua;
@@ -305,7 +183,6 @@ public class KomandakController : ControllerBase
                 }
 
                 session.Delete(komanda);
-                if (fakturaId > 0) EguneratuFakturaTotala(session, fakturaId);
                 transaction.Commit();
                 return NoContent();
             }
@@ -342,46 +219,4 @@ public class KomandakController : ControllerBase
             }
         }
     }
-
-    private static double KalkulatuFakturaTotala(ISession session, int fakturaId)
-    {
-        var totalaRaw = session.CreateSQLQuery(@"
-SELECT COALESCE(SUM(k.totala), 0)
-FROM Komandak k
-WHERE k.fakturak_id = :id
-")
-            .SetParameter("id", fakturaId)
-            .UniqueResult();
-
-        return Convert.ToDouble(totalaRaw);
-    }
-
-    private static void EguneratuFakturaTotala(ISession session, int fakturaId)
-    {
-        var faktura = session.Get<Faktura>(fakturaId);
-        if (faktura == null) return;
-
-        faktura.Totala = KalkulatuFakturaTotala(session, fakturaId);
-        session.Update(faktura);
-    }
-}
-
-public class KomandaItemDto
-{
-    public int Id { get; set; }
-    public int PlaterakId { get; set; }
-    public int FakturakId { get; set; }
-    public int Kopurua { get; set; }
-    public string Oharrak { get; set; }
-    public bool Egoera { get; set; }
-}
-
-public class KomandaQuantityDto
-{
-    public int Kopurua { get; set; }
-}
-
-public class KomandaOharrakDto
-{
-    public string Oharrak { get; set; }
 }

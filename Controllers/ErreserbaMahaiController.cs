@@ -72,11 +72,11 @@ public class ErreserbaMahaiakController : ControllerBase
 
         try
         {
-            var relaciones = session.Query<ErreserbaMahai>()
+            var erlazioak = session.Query<ErreserbaMahai>()
                 .Where(em => em.Erreserba.Id == erreserbaId)
                 .ToList();
 
-            foreach (var r in relaciones)
+            foreach (var r in erlazioak)
                 session.Delete(r);
 
             tx.Commit();
