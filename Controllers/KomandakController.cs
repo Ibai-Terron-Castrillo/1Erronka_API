@@ -34,14 +34,23 @@ public class KomandakController : ControllerBase
 
     // GET BY ID
     [HttpGet("{id}")]
-    public ActionResult<Komanda> Get(int id)
+    public ActionResult<KomandaItemDto> Get(int id)
     {
         using (var session = _sessionFactory.OpenSession())
         {
             var komanda = session.Get<Komanda>(id);
             if (komanda == null)
                 return NotFound();
-            return Ok(komanda);
+            var dto = new KomandaItemDto
+            {
+                Id = komanda.Id,
+                PlaterakId = komanda.Platerak.Id,
+                FakturakId = komanda.Faktura.Id,
+                Kopurua = komanda.Kopurua,
+                Oharrak = komanda.Oharrak,
+                Egoera = komanda.Egoera
+            };
+            return Ok(dto);
         }
     }
 
@@ -71,7 +80,8 @@ public class KomandakController : ControllerBase
                 PlaterakId = k.Platerak.Id,
                 FakturakId = k.Faktura.Id,
                 Kopurua = k.Kopurua,
-                Oharrak = k.Oharrak
+                Oharrak = k.Oharrak,
+                Egoera = k.Egoera
             })
             .ToList();
 
@@ -317,6 +327,7 @@ public class KomandaItemDto
     public int FakturakId { get; set; }
     public int Kopurua { get; set; }
     public string Oharrak { get; set; }
+    public bool Egoera { get; set; }
 }
 
 public class KomandaQuantityDto
