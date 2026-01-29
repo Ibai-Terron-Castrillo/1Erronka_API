@@ -3,6 +3,7 @@ using NHibernate;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.Data.SqlClient;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -144,19 +145,70 @@ public class OsagaiakController : ControllerBase
                 if (osagaia == null)
                     return NotFound();
 
-                var platerakCount = session.Query<PlaterakOsagaia>()
-                    .Count(po => po.OsagaiakId == id);
+                var platerakCount = session.Query<Platerak>()
+                    .Count(p => p.Osagaiak.Any(o => o.Id == id));
 
                 if (platerakCount > 0)
+                {
                     return BadRequest($"Ezin da osagaia ezabatu, {platerakCount} platan erabiltzen da");
+                }
+
+                var eskaerakCount = session.Query<Eskaera>()
+                    .Count(e => e.Osagaiak.Any(o => o.Id == id));
+
+                if (eskaerakCount > 0)
+                {
+                    return BadRequest($"Ezin da osagaia ezabatu, {eskaerakCount} eskaritan erabiltzen da");
+                }
+
+                var hornitzaileakCount = session.Query<Hornitzailea>()
+                    .Count(h => h.Osagaiak.Any(o => o.Id == id));
+
+                if (hornitzaileakCount > 0)
+                {
+                    return BadRequest($"Ezin da osagaia ezabatu, {hornitzaileakCount} hornitzailekin erlazionatuta dago");
+                }
+
+                osagaia.Platerak.Clear();
+                osagaia.Hornitzaileak.Clear();
+
+                session.Update(osagaia);
 
                 session.Delete(osagaia);
+
                 transaction.Commit();
+
+                Console.WriteLine($"Osagaia {id} ezabatuta");   
                 return NoContent();
+            }
+            catch (NHibernate.Exceptions.GenericADOException ex)
+            {
+                transaction.Rollback();
+
+                if (ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlEx)
+                {
+                    if (sqlEx.Number == 547)
+                    {
+                        var errorDetails = sqlEx.Message;
+                        if (errorDetails.Contains("FK_"))
+                        {
+                            var fkName = errorDetails.Substring(
+                                errorDetails.IndexOf("FK_"),
+                                errorDetails.IndexOf("\"", errorDetails.IndexOf("FK_")) - errorDetails.IndexOf("FK_")
+                            );
+                            return BadRequest($"Ezin da osagaia ezabatu. Errorea: {fkName}");
+                        }
+                        return BadRequest("Ezin da osagaia ezabatu: beste taula batzuetan erabiltzen ari da.");
+                    }
+                }
+
+                Console.WriteLine($"Errorea osagaia ezabatzean {id}: {ex}");
+                return StatusCode(500, $"Errore teknikoa: {ex.InnerException?.Message ?? ex.Message}");
             }
             catch (Exception ex)
             {
                 transaction.Rollback();
+                Console.WriteLine($"Errorea osagaia ezabatzean {id}: {ex}");
                 return StatusCode(500, $"Errorea: {ex.Message}");
             }
         }
