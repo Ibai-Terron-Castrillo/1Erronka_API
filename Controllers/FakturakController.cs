@@ -30,28 +30,33 @@ public class FakturakController : ControllerBase
 
     // GET BY ID
     [HttpGet("{id}")]
-    public ActionResult<Faktura> Get(int id)
+    public ActionResult<FakturaDto> Get(int id)
     {
         using (var session = _sessionFactory.OpenSession())
         {
-            var faktura = session.Get<Faktura>(id);
-            if (faktura == null)
-                return NotFound();
+            var faktura =
+                session.Query<Faktura>()
+                    .Where(f => f.Id == id)
+                    .Select(ToDto)
+                    .FirstOrDefault();
+            if (faktura == null) return NotFound();
             return Ok(faktura);
         }
     }
 
     // GET BY ERRESERBA ID
     [HttpGet("erreserba/{erreserbaId}")]
-    public ActionResult<Faktura> GetByErreserba(int erreserbaId)
+    public ActionResult<FakturaDto> GetByErreserba(int erreserbaId)
     {
         using (var session = _sessionFactory.OpenSession())
         {
-            var faktura = session.Query<Faktura>()
-                .Where(f => f.Erreserba.Id == erreserbaId)
-                .OrderBy(f => f.Egoera)
-                .ThenByDescending(f => f.Id)
-                .FirstOrDefault();
+            var faktura =
+                session.Query<Faktura>()
+                    .Where(f => f.Erreserba.Id == erreserbaId)
+                    .OrderBy(f => f.Egoera)
+                    .ThenByDescending(f => f.Id)
+                    .Select(ToDto)
+                    .FirstOrDefault();
 
             if (faktura == null)
                 return NotFound();
@@ -61,7 +66,7 @@ public class FakturakController : ControllerBase
 
     // POST
     [HttpPost]
-    public ActionResult<Faktura> Post([FromBody] Faktura faktura)
+    public ActionResult<FakturaDto> Post([FromBody] Faktura faktura)
     {
         using (var session = _sessionFactory.OpenSession())
         using (var transaction = session.BeginTransaction())
@@ -81,7 +86,7 @@ public class FakturakController : ControllerBase
                 faktura.Egoera = false;
                 session.Save(faktura);
                 transaction.Commit();
-                return CreatedAtAction(nameof(Get), new { id = faktura.Id }, faktura);
+                return CreatedAtAction(nameof(Get), new { id = faktura.Id }, ToDto(faktura));
             }
             catch (Exception ex)
             {
