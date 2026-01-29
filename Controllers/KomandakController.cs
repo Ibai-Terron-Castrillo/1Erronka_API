@@ -126,6 +126,7 @@ public class KomandakController : ControllerBase
         platera.Stock -= dto.Kopurua;
         session.Update(platera);
 
+        EguneratuFakturaTotala(session, faktura.Id);
         tx.Commit();
         return Ok();
     }
@@ -166,6 +167,7 @@ public class KomandakController : ControllerBase
 
             session.Update(platera);
             session.Update(komanda);
+            EguneratuFakturaTotala(session, komanda.Faktura.Id);
             tx.Commit();
             return NoContent();
         }
@@ -218,6 +220,8 @@ public class KomandakController : ControllerBase
                 if (existing == null)
                     return NotFound();
 
+                var oldFakturaId = existing.Faktura?.Id ?? 0;
+
                 if (existing.Kopurua != komanda.Kopurua || existing.Platerak != komanda.Platerak)
                 {
                     var plateraZaharraId = existing.Platerak?.Id ?? 0;
@@ -241,14 +245,32 @@ public class KomandakController : ControllerBase
                     session.Update(plateraBerria);
                 }
 
-                existing.Platerak = komanda.Platerak;
-                existing.Faktura = komanda.Faktura;
+                var newPlateraId = komanda.Platerak?.Id ?? 0;
+                if (newPlateraId > 0)
+                {
+                    var platera = session.Get<Platerak>(newPlateraId);
+                    if (platera == null)
+                        return BadRequest("Platera berria ez da existitzen");
+                    existing.Platerak = platera;
+                }
+
+                var newFakturaIdFromBody = komanda.Faktura?.Id ?? 0;
+                if (newFakturaIdFromBody > 0)
+                {
+                    var faktura = session.Get<Faktura>(newFakturaIdFromBody);
+                    if (faktura == null)
+                        return BadRequest("Faktura ez da existitzen");
+                    existing.Faktura = faktura;
+                }
                 existing.Kopurua = komanda.Kopurua;
-                existing.Totala = komanda.Totala;
+                existing.Totala = komanda.Kopurua * (existing.Platerak?.Prezioa ?? 0);
                 existing.Oharrak = komanda.Oharrak;
                 existing.Egoera = komanda.Egoera;
 
                 session.Update(existing);
+                var newFakturaId = existing.Faktura?.Id ?? 0;
+                if (oldFakturaId > 0) EguneratuFakturaTotala(session, oldFakturaId);
+                if (newFakturaId > 0 && newFakturaId != oldFakturaId) EguneratuFakturaTotala(session, newFakturaId);
                 transaction.Commit();
                 return NoContent();
             }
@@ -273,6 +295,7 @@ public class KomandakController : ControllerBase
                 if (komanda == null)
                     return NotFound();
 
+                var fakturaId = komanda.Faktura?.Id ?? 0;
                 var plateraId = komanda.Platerak?.Id ?? 0;
                 var platera = plateraId > 0 ? session.Get<Platerak>(plateraId) : null;
                 if (platera != null)
@@ -282,6 +305,7 @@ public class KomandakController : ControllerBase
                 }
 
                 session.Delete(komanda);
+                if (fakturaId > 0) EguneratuFakturaTotala(session, fakturaId);
                 transaction.Commit();
                 return NoContent();
             }
@@ -317,6 +341,28 @@ public class KomandakController : ControllerBase
                 return StatusCode(500, $"Errorea: {ex.Message}");
             }
         }
+    }
+
+    private static double KalkulatuFakturaTotala(ISession session, int fakturaId)
+    {
+        var totalaRaw = session.CreateSQLQuery(@"
+SELECT COALESCE(SUM(k.totala), 0)
+FROM Komandak k
+WHERE k.fakturak_id = :id
+")
+            .SetParameter("id", fakturaId)
+            .UniqueResult();
+
+        return Convert.ToDouble(totalaRaw);
+    }
+
+    private static void EguneratuFakturaTotala(ISession session, int fakturaId)
+    {
+        var faktura = session.Get<Faktura>(fakturaId);
+        if (faktura == null) return;
+
+        faktura.Totala = KalkulatuFakturaTotala(session, fakturaId);
+        session.Update(faktura);
     }
 }
 
