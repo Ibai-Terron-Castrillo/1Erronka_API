@@ -64,7 +64,7 @@ GROUP BY em.mahaiak_id
             .Select(row => new MahaiDto
             {
                 Id = Convert.ToInt32(row[0]),
-                Zenbakia = Convert.ToInt32(row[1]),
+                MahaiZenbakia = Convert.ToInt32(row[1]),
                 PertsonaMax = Convert.ToInt32(row[2]),
                 Occupied = occupiedByMahaiId.ContainsKey(Convert.ToInt32(row[0])),
                 ErreserbaId = occupiedByMahaiId.TryGetValue(Convert.ToInt32(row[0]), out var occ) ? occ.ErreserbaId : null,
@@ -304,7 +304,7 @@ WHERE k.fakturak_id = :fakturaId
             var dto = new MahaiDto
             {
                 Id = mahai.Id,
-                Zenbakia = mahai.MahaiZenbakia,
+                MahaiZenbakia = mahai.MahaiZenbakia,
                 PertsonaMax = mahai.PertsonaMax,
                 Occupied = false
             };
@@ -424,7 +424,7 @@ WHERE em.mahaiak_id = :mahaiId AND DATE(e.data) = :date AND e.txanda = :txanda
         var dto = new MahaiDto
         {
             Id = mahai.Id,
-            Zenbakia = mahai.MahaiZenbakia,
+            MahaiZenbakia = mahai.MahaiZenbakia,
             PertsonaMax = mahai.PertsonaMax,
             Occupied = occupied
         };

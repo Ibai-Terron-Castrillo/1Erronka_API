@@ -14,6 +14,8 @@ public class Faktura
     public virtual bool Egoera { get; set; }
     public virtual string FakturaPdf { get; set; }
 
+    public virtual int ErreserbakId { get; set; }
+
     public virtual Erreserba Erreserba { get; set; }
     public virtual IList<Komanda> Komandak { get; set; }
 }
