@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using NHibernate;
+using NHibernate.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -56,6 +57,37 @@ public class KomandakController : ControllerBase
             .ToList();
 
         return Ok(komandak);
+    }
+
+    [HttpGet("faktura/{fakturaId}/items")]
+    public ActionResult<IEnumerable<KomandaDto>> GetItemsByFaktura(int fakturaId)
+    {
+        using var session = _sessionFactory.OpenSession();
+
+        var komandak = session.Query<Komanda>()
+            .Fetch(k => k.Platerak)
+            .Fetch(k => k.Faktura)
+            .Where(k => k.Faktura.Id == fakturaId)
+            .Select(MapToDto)
+            .ToList();
+
+        return Ok(komandak);
+    }
+
+    private static KomandaDto MapToDto(Komanda k)
+    {
+        return new KomandaDto
+        {
+            Id = k.Id,
+            FakturakId = k.Faktura?.Id ?? 0,
+            PlaterakId = k.Platerak?.Id ?? 0,
+            Kopurua = k.Kopurua,
+            Totala = k.Totala,
+            Oharrak = k.Oharrak,
+            Egoera = k.Egoera,
+            Platerak = k.Platerak == null ? null : new PlaterakRefDto { Id = k.Platerak.Id },
+            Faktura = k.Faktura == null ? null : new FakturaRefDto { Id = k.Faktura.Id }
+        };
     }
 
 
@@ -208,6 +240,31 @@ public class KomandakController : ControllerBase
                     return NotFound();
 
                 komanda.Egoera = egoera;
+                session.Update(komanda);
+                transaction.Commit();
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                transaction.Rollback();
+                return StatusCode(500, $"Errorea: {ex.Message}");
+            }
+        }
+    }
+
+    [HttpPut("{id}/oharrak")]
+    public ActionResult UpdateOharrak(int id, [FromBody] OharrakUpdateDto update)
+    {
+        using (var session = _sessionFactory.OpenSession())
+        using (var transaction = session.BeginTransaction())
+        {
+            try
+            {
+                var komanda = session.Get<Komanda>(id);
+                if (komanda == null)
+                    return NotFound();
+
+                komanda.Oharrak = update?.Oharrak;
                 session.Update(komanda);
                 transaction.Commit();
                 return NoContent();

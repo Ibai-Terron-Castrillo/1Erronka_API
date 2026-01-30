@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using NHibernate;
+using NHibernate.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,6 +27,19 @@ public class FakturakController : ControllerBase
         }
     }
 
+    [HttpGet("items")]
+    public ActionResult<IEnumerable<FakturaDto>> GetItems()
+    {
+        using var session = _sessionFactory.OpenSession();
+
+        var fakturak = session.Query<Faktura>()
+            .Fetch(f => f.Erreserba)
+            .Select(MapToDto)
+            .ToList();
+
+        return Ok(fakturak);
+    }
+
     // GET BY ID
     [HttpGet("{id}")]
     public ActionResult<Faktura> Get(int id)
@@ -37,6 +51,21 @@ public class FakturakController : ControllerBase
                 return NotFound();
             return Ok(faktura);
         }
+    }
+
+    [HttpGet("{id}/item")]
+    public ActionResult<FakturaDto> GetItem(int id)
+    {
+        using var session = _sessionFactory.OpenSession();
+
+        var faktura = session.Query<Faktura>()
+            .Fetch(f => f.Erreserba)
+            .FirstOrDefault(f => f.Id == id);
+
+        if (faktura == null)
+            return NotFound();
+
+        return Ok(MapToDto(faktura));
     }
 
     // GET BY ERRESERBA ID
@@ -53,6 +82,32 @@ public ActionResult<Faktura> GetByErreserba(int erreserbaId)
 
     return Ok(faktura);
 }
+
+    [HttpGet("erreserba/{erreserbaId}/item")]
+    public ActionResult<FakturaDto> GetItemByErreserba(int erreserbaId)
+    {
+        using var session = _sessionFactory.OpenSession();
+
+        var faktura = session.Query<Faktura>()
+            .Fetch(f => f.Erreserba)
+            .FirstOrDefault(f => f.Erreserba.Id == erreserbaId && !f.Egoera);
+
+        if (faktura == null)
+            return NotFound();
+
+        return Ok(MapToDto(faktura));
+    }
+
+    private static FakturaDto MapToDto(Faktura f)
+    {
+        return new FakturaDto
+        {
+            Id = f.Id,
+            Totala = f.Totala,
+            Egoera = f.Egoera,
+            ErreserbaId = f.Erreserba?.Id ?? 0
+        };
+    }
 
 
 
