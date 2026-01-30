@@ -3,7 +3,6 @@ using NHibernate;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Microsoft.Data.SqlClient;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -185,11 +184,11 @@ public class OsagaiakController : ControllerBase
             {
                 transaction.Rollback();
 
-                if (ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlEx)
+                if (TryGetSqlException(ex.InnerException, out var sqlNumber, out var sqlMessage))
                 {
-                    if (sqlEx.Number == 547)
+                    if (sqlNumber == 547)
                     {
-                        var errorDetails = sqlEx.Message;
+                        var errorDetails = sqlMessage ?? string.Empty;
                         if (errorDetails.Contains("FK_"))
                         {
                             var fkName = errorDetails.Substring(
@@ -212,6 +211,31 @@ public class OsagaiakController : ControllerBase
                 return StatusCode(500, $"Errorea: {ex.Message}");
             }
         }
+    }
+
+    private static bool TryGetSqlException(Exception exception, out int number, out string message)
+    {
+        number = 0;
+        message = null;
+
+        if (exception == null) return false;
+
+        var type = exception.GetType();
+        var fullName = type.FullName;
+        if (string.IsNullOrEmpty(fullName) || !fullName.EndsWith(".SqlException", StringComparison.Ordinal)) return false;
+
+        var prop = type.GetProperty("Number");
+        if (prop == null) return false;
+
+        var raw = prop.GetValue(exception);
+        if (raw is IConvertible convertible)
+        {
+            number = convertible.ToInt32(null);
+            message = exception.Message;
+            return true;
+        }
+
+        return false;
     }
 
     // Stock eguneratu
